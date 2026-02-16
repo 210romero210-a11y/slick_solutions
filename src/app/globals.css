@@ -1,0 +1,12 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  padding: 2rem;
+}
