@@ -4,10 +4,12 @@ import type { AssessmentSubmissionResponse, SelfAssessmentPhoto } from "@slick/c
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
-type PageProps = {
-  params: {
+import { InspectClient } from "./InspectClient";
+
+type InspectPageProps = {
+  params: Promise<{
     tenantSlug: string;
-  };
+  }>;
 };
 
 type PhotoChecklistItem = {
