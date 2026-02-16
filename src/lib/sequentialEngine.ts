@@ -1,0 +1,157 @@
+import { orchestrateInspection, type InspectionRecord, type PhotoAsset } from "../../convex/workflows";
+import { shouldRequireManualReview } from "./assessmentPolicy";
+import { createAssessmentRun, type PersistedAssessmentRun } from "./assessmentPersistence";
+import { assessVehicleWithVision, mapSeverityToDifficulty, type VisionAssessmentResult } from "./visionAssessment";
+import type {
+  BookingRequest,
+  BookingResponse,
+  CustomerIntake,
+  DynamicPricingRequest,
+  DynamicPricingResponse,
+  OnboardingRequest,
+  OnboardingResponse,
+} from "./intakeSchemas";
+
+const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+
+export function provisionTenant(input: OnboardingRequest, baseUrl: string): OnboardingResponse {
+  return {
+    tenantId: generateId("tenant"),
+    tenantSlug: input.tenantSlug,
+    qrLandingUrl: `${baseUrl}/${input.tenantSlug}/inspect`,
+    status: "provisioned",
+  };
+}
+
+function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
+  return photoUrls.map((url, index) => {
+    const label: PhotoAsset["label"] =
+      index === 0 ? "front" : index === 1 ? "rear" : index === 2 ? "left" : index === 3 ? "right" : "detail";
+
+    return {
+      id: `photo_${index + 1}`,
+      url,
+      label,
+      capturedAt: new Date().toISOString(),
+    };
+  });
+}
+
+function estimateQuoteFromDifficulty(difficultyScore: number): number {
+  const laborCents = 35_000 + difficultyScore * 120;
+  const materialsCents = 18_000 + difficultyScore * 85;
+  return laborCents + materialsCents;
+}
+
+export function runAssessment(input: CustomerIntake): InspectionRecord {
+  const record: InspectionRecord = {
+    inspectionId: input.inspectionId,
+    tenantSlug: input.tenantSlug,
+    vin: input.vin,
+    contact: input.contact,
+    photos: mapPhotoUrls(input.photoUrls),
+    timeline: [],
+  };
+
+  return orchestrateInspection(record);
+}
+
+export async function runAssessmentWithVision(
+  input: CustomerIntake,
+): Promise<{ inspection: InspectionRecord; vision: VisionAssessmentResult; run: PersistedAssessmentRun }> {
+  const inspection = runAssessment(input);
+  const visionInput = {
+    vin: input.vin,
+    photoUrls: input.photoUrls,
+    ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
+  };
+  const vision = await assessVehicleWithVision(visionInput);
+
+  const difficultyScore = mapSeverityToDifficulty(vision.finding.severity);
+  const quoteCents = estimateQuoteFromDifficulty(difficultyScore);
+  const needsManualReview = shouldRequireManualReview({
+    source: vision.source,
+    severity: vision.finding.severity,
+    confidence: vision.finding.confidence,
+  });
+
+  const run = await createAssessmentRun({
+    inspectionId: inspection.inspectionId,
+    tenantSlug: inspection.tenantSlug,
+    vin: inspection.vin,
+    model: vision.model,
+    source: vision.source,
+    severity: vision.finding.severity,
+    confidence: vision.finding.confidence,
+    summary: vision.finding.summary,
+    recommendedServices: vision.finding.recommendedServices,
+    ...(vision.rawResponse ? { rawResponse: vision.rawResponse } : {}),
+    needsManualReview,
+  });
+
+  return {
+    inspection: {
+      ...inspection,
+      difficultyScore,
+      damageSummary: vision.finding.summary,
+      quoteCents,
+      timeline: [
+        ...inspection.timeline,
+        {
+          state: "agent_damage_triage",
+          actor: "agent",
+          at: new Date().toISOString(),
+          metadata: {
+            aiSource: vision.source,
+            severity: vision.finding.severity,
+            confidence: vision.finding.confidence,
+            assessmentRunId: run.runId,
+            needsManualReview,
+          },
+        },
+      ],
+    },
+    vision,
+    run,
+  };
+}
+
+function calculateConditionMultiplier(difficultyScore: number): number {
+  if (difficultyScore <= 25) {
+    return 1;
+  }
+  if (difficultyScore <= 50) {
+    return 1.12;
+  }
+  if (difficultyScore <= 75) {
+    return 1.24;
+  }
+  return 1.36;
+}
+
+export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingResponse {
+  const appliedConditionMultiplier = calculateConditionMultiplier(input.difficultyScore);
+  const subtotalCents = Math.round(
+    input.baseServicePriceCents * appliedConditionMultiplier * input.vehicleSizeMultiplier * input.demandMultiplier,
+  );
+  const totalCents = Math.max(0, subtotalCents + input.addOnsCents - input.discountCents);
+
+  return {
+    subtotalCents,
+    totalCents,
+    appliedConditionMultiplier,
+    explanation:
+      "Base price adjusted by condition severity, vehicle size, and demand profile. Add-ons and discounts are then applied.",
+  };
+}
+
+export function createBooking(input: BookingRequest): BookingResponse {
+  const depositCents = input.requiresDeposit ? Math.round(input.approvedQuoteCents * 0.2) : 0;
+
+  return {
+    bookingId: generateId("booking"),
+    status: input.requiresDeposit ? "pending_deposit" : "confirmed",
+    depositCents,
+    paymentIntentClientSecret: input.requiresDeposit ? `pi_stub_${generateId("secret")}` : null,
+  };
+}

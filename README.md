@@ -2,8 +2,8 @@
 
 This repository includes:
 
-- Next.js 16 app-router application under `src/app`
+- Next.js 16 App Router application under `app/`
 - Convex backend under `convex/`
 - Shared typed contracts package under `packages/contracts`
 - Strict TypeScript + linting policy (including no explicit `any`)
-- CI workflow validating lint, typecheck, and build
+- Sequential SaaS scaffold for onboarding, self-assessment, AI-assisted assessment, pricing, bookings, and manual review gating with durable file-backed assessment run persistence

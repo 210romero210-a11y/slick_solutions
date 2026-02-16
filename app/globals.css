@@ -1,0 +1,29 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  padding: 2rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+  padding: 0.5rem;
+}
+
+button {
+  cursor: pointer;
+}
