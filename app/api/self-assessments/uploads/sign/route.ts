@@ -31,7 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const payload = JSON.stringify({ ...parsedBody.data, uploadId: uploadId, expiresAtMs });
   const signature = signUploadToken(payload);
   const encoded = Buffer.from(payload).toString("base64url");
-  const token = `${encoded}.${signature}`;
+  const token = ""+encoded+"."+signature;
 
   return NextResponse.json({
     uploadUrl: "/api/self-assessments/uploads/"+token,
