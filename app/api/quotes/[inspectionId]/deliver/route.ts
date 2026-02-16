@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deliverQuoteSmsStub, deliverQuoteWeb, orchestrateInspection } from "../../../../../convex/workflows";
 
-export async function POST(request: NextRequest, context: { params: { inspectionId: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ inspectionId: string }> }) {
   const formData = await request.formData();
+  const { inspectionId } = await context.params;
 
   const inspection = orchestrateInspection({
-    inspectionId: context.params.inspectionId,
+    inspectionId,
     tenantSlug: "default",
     vin: String(formData.get("vin") ?? "UNKNOWNVIN00000000"),
     contact: {
