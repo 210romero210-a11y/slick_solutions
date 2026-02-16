@@ -85,3 +85,5 @@ export type DynamicPricingRequest = z.infer<typeof dynamicPricingRequestSchema>;
 export type DynamicPricingResponse = z.infer<typeof dynamicPricingResponseSchema>;
 export type BookingRequest = z.infer<typeof bookingRequestSchema>;
 export type BookingResponse = z.infer<typeof bookingResponseSchema>;
+export type AssessmentReviewRequest = z.infer<typeof assessmentReviewRequestSchema>;
+export type AssessmentReviewResponse = z.infer<typeof assessmentReviewResponseSchema>;
