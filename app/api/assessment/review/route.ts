@@ -11,7 +11,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "runId query parameter is required" }, { status: 400 });
   }
 
-  const run = await getAssessmentRun(runId);
+  const run = getAssessmentRun(runId);
 
   if (!run) {
     return NextResponse.json({ error: "Assessment run not found" }, { status: 404 });
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const updated = await reviewAssessmentRun({
+  const updated = reviewAssessmentRun({
     runId: parsed.data.runId,
     reviewer: parsed.data.reviewer,
     status: parsed.data.status,
