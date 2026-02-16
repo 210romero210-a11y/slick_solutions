@@ -12,7 +12,7 @@ const signRequestSchema = z.object({
 
 const signingSecret = process.env.SELF_ASSESSMENT_UPLOAD_SECRET ?? "local-dev-upload-secret";
 
-const signUploadToken = (payload: string): string => createHmac("sha256", signingSecret).update(payload).digest("hex");
+const signUploadToken = function(payload: string) { return createHmac("sha256", signingSecret).update(payload).digest("hex") };
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsedBody = signRequestSchema.safeParse(await request.json());
