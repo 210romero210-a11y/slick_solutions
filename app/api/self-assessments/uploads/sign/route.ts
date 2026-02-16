@@ -28,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const expiresAtMs = Date.now() + 5 * 60 * 1000;
   const uploadId = randomUUID();
-  const payload = JSON.stringify({ ...parsedBody.data, uploadId, expiresAtMs });
+  const payload = JSON.stringify({ ...parsedBody.data, uploadId: uploadId, expiresAtMs });
   const signature = signUploadToken(payload);
   const encoded = Buffer.from(payload).toString("base64url");
   const token = `${encoded}.${signature}`;
