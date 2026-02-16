@@ -1,7 +1,4 @@
 import { orchestrateInspection, type InspectionRecord, type PhotoAsset } from "../../convex/workflows";
-import { shouldRequireManualReview } from "./assessmentPolicy";
-import { createAssessmentRun, type PersistedAssessmentRun } from "./assessmentPersistence";
-import { assessVehicleWithVision, mapSeverityToDifficulty, type VisionAssessmentResult } from "./visionAssessment";
 import type {
   BookingRequest,
   BookingResponse,
@@ -11,6 +8,7 @@ import type {
   OnboardingRequest,
   OnboardingResponse,
 } from "./intakeSchemas";
+import { runVisionAssessment } from "./aiRuntime";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -37,12 +35,6 @@ function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
   });
 }
 
-function estimateQuoteFromDifficulty(difficultyScore: number): number {
-  const laborCents = 35_000 + difficultyScore * 120;
-  const materialsCents = 18_000 + difficultyScore * 85;
-  return laborCents + materialsCents;
-}
-
 export function runAssessment(input: CustomerIntake): InspectionRecord {
   const record: InspectionRecord = {
     inspectionId: input.inspectionId,
@@ -53,66 +45,24 @@ export function runAssessment(input: CustomerIntake): InspectionRecord {
     timeline: [],
   };
 
-  return orchestrateInspection(record);
-}
+  const orchestrated = orchestrateInspection(initialRecord);
+  const aiDifficulty = severityToDifficulty(aiResult.severity);
 
-export async function runAssessmentWithVision(
-  input: CustomerIntake,
-): Promise<{ inspection: InspectionRecord; vision: VisionAssessmentResult; run: PersistedAssessmentRun }> {
-  const inspection = runAssessment(input);
-  const visionInput = {
-    vin: input.vin,
-    photoUrls: input.photoUrls,
-    ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
+  const blendedDifficulty = clampDifficulty((orchestrated.difficultyScore ?? aiDifficulty) * 0.4 + aiDifficulty * 0.6);
+
+  const record: InspectionRecord = {
+    ...orchestrated,
+    damageSummary: aiResult.summary,
+    difficultyScore: blendedDifficulty,
+    quoteCents: estimateQuoteFromDifficulty(blendedDifficulty),
   };
-  const vision = await assessVehicleWithVision(visionInput);
-
-  const difficultyScore = mapSeverityToDifficulty(vision.finding.severity);
-  const quoteCents = estimateQuoteFromDifficulty(difficultyScore);
-  const needsManualReview = shouldRequireManualReview({
-    source: vision.source,
-    severity: vision.finding.severity,
-    confidence: vision.finding.confidence,
-  });
-
-  const run = createAssessmentRun({
-    inspectionId: inspection.inspectionId,
-    tenantSlug: inspection.tenantSlug,
-    vin: inspection.vin,
-    model: vision.model,
-    source: vision.source,
-    severity: vision.finding.severity,
-    confidence: vision.finding.confidence,
-    summary: vision.finding.summary,
-    recommendedServices: vision.finding.recommendedServices,
-    ...(vision.rawResponse ? { rawResponse: vision.rawResponse } : {}),
-    needsManualReview,
-  });
 
   return {
-    inspection: {
-      ...inspection,
-      difficultyScore,
-      damageSummary: vision.finding.summary,
-      quoteCents,
-      timeline: [
-        ...inspection.timeline,
-        {
-          state: "agent_damage_triage",
-          actor: "agent",
-          at: new Date().toISOString(),
-          metadata: {
-            aiSource: vision.source,
-            severity: vision.finding.severity,
-            confidence: vision.finding.confidence,
-            assessmentRunId: run.runId,
-            needsManualReview,
-          },
-        },
-      ],
-    },
-    vision,
-    run,
+    record,
+    analysisSource: aiResult.analysisSource,
+    confidence: aiResult.confidence,
+    recommendedServices: aiResult.recommendedServices,
+    runId: aiResult.runId,
   };
 }
 

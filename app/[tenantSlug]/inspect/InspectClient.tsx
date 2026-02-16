@@ -12,17 +12,10 @@ type AssessmentResult = {
   difficultyScore: number;
   quoteCents: number;
   timelineCount: number;
-  ai: {
-    source: "ollama" | "heuristic_fallback";
-    severity: "minor" | "moderate" | "major" | "critical";
-    confidence: number;
-    summary: string;
-    recommendedServices: string[];
-    model: string;
-  };
-  assessmentRunId: string;
-  needsManualReview: boolean;
-  reviewStatus: "pending" | "approved" | "rejected";
+  analysisSource: "ollama" | "heuristic";
+  confidence: number;
+  recommendedServices: string[];
+  runId: string;
 };
 
 const requiredAngles: string[] = [
@@ -142,16 +135,11 @@ export function InspectClient({ tenantSlug }: InspectClientProps): ReactElement 
           <p>Status: {result.status}</p>
           <p>Difficulty score: {result.difficultyScore}</p>
           <p>Estimated total: ${(result.quoteCents / 100).toFixed(2)}</p>
+          <p>Analysis source: {result.analysisSource}</p>
+          <p>AI confidence: {(result.confidence * 100).toFixed(0)}%</p>
+          <p>Recommended services: {result.recommendedServices.join(", ")}</p>
+          <p>Agent run ID: {result.runId}</p>
           <p>Timeline events generated: {result.timelineCount}</p>
-          <p>AI source: {result.ai.source}</p>
-          <p>AI model: {result.ai.model}</p>
-          <p>AI severity: {result.ai.severity}</p>
-          <p>AI confidence: {Math.round(result.ai.confidence * 100)}%</p>
-          <p>AI summary: {result.ai.summary}</p>
-          <p>AI recommended services: {result.ai.recommendedServices.join(", ") || "None"}</p>
-          <p>Assessment run ID: {result.assessmentRunId}</p>
-          <p>Needs manual review: {result.needsManualReview ? "Yes" : "No"}</p>
-          <p>Review status: {result.reviewStatus}</p>
         </section>
       ) : null}
     </main>

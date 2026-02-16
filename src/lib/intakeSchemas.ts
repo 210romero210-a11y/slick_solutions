@@ -39,17 +39,10 @@ export const assessmentResponseSchema = z.object({
   difficultyScore: z.number().int().min(0).max(100),
   quoteCents: z.number().int().positive(),
   timelineCount: z.number().int().positive(),
-  ai: z.object({
-    source: z.enum(["ollama", "heuristic_fallback"]),
-    severity: z.enum(["minor", "moderate", "major", "critical"]),
-    confidence: z.number().min(0).max(1),
-    summary: z.string(),
-    recommendedServices: z.array(z.string()),
-    model: z.string(),
-  }),
-  assessmentRunId: z.string().uuid(),
-  needsManualReview: z.boolean(),
-  reviewStatus: z.enum(["pending", "approved", "rejected"]),
+  analysisSource: z.enum(["ollama", "heuristic"]),
+  confidence: z.number().min(0).max(1),
+  recommendedServices: z.array(z.string()),
+  runId: z.string(),
 });
 
 export const dynamicPricingRequestSchema = z.object({
@@ -82,22 +75,6 @@ export const bookingResponseSchema = z.object({
   status: z.enum(["pending_deposit", "confirmed"]),
   depositCents: z.number().int().nonnegative(),
   paymentIntentClientSecret: z.string().nullable(),
-});
-
-
-export const assessmentReviewRequestSchema = z.object({
-  runId: z.string().uuid(),
-  reviewer: z.string().min(2),
-  status: z.enum(["approved", "rejected"]),
-  notes: z.string().max(1000).optional(),
-});
-
-export const assessmentReviewResponseSchema = z.object({
-  runId: z.string().uuid(),
-  reviewStatus: z.enum(["pending", "approved", "rejected"]),
-  reviewedBy: z.string().optional(),
-  reviewedAt: z.string().optional(),
-  reviewNotes: z.string().optional(),
 });
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;

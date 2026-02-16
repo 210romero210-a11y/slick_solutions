@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { assessmentResponseSchema, customerIntakeSchema } from "@/lib/intakeSchemas";
-import { runAssessmentWithVision } from "@/lib/sequentialEngine";
+import { runAssessment } from "@/lib/sequentialEngine";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const json = await request.json();
@@ -11,25 +11,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = await runAssessmentWithVision(parsed.data);
+  const result = await runAssessment(parsed.data);
 
   const response = assessmentResponseSchema.parse({
-    inspectionId: result.inspection.inspectionId,
+    inspectionId: result.record.inspectionId,
     status: "quote_ready",
-    difficultyScore: result.inspection.difficultyScore ?? 0,
-    quoteCents: result.inspection.quoteCents ?? 0,
-    timelineCount: result.inspection.timeline.length,
-    ai: {
-      source: result.vision.source,
-      severity: result.vision.finding.severity,
-      confidence: result.vision.finding.confidence,
-      summary: result.vision.finding.summary,
-      recommendedServices: result.vision.finding.recommendedServices,
-      model: result.vision.model,
-    },
-    assessmentRunId: result.run.runId,
-    needsManualReview: result.run.needsManualReview,
-    reviewStatus: result.run.reviewStatus,
+    difficultyScore: result.record.difficultyScore ?? 0,
+    quoteCents: result.record.quoteCents ?? 0,
+    timelineCount: result.record.timeline.length,
+    analysisSource: result.analysisSource,
+    confidence: result.confidence,
+    recommendedServices: result.recommendedServices,
+    runId: result.runId,
   });
 
   return NextResponse.json(response, { status: 200 });
