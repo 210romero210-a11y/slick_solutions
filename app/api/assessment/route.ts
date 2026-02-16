@@ -11,14 +11,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const result = runAssessment(parsed.data);
+  const result = await runAssessment(parsed.data);
 
   const response = assessmentResponseSchema.parse({
-    inspectionId: result.inspectionId,
+    inspectionId: result.record.inspectionId,
     status: "quote_ready",
-    difficultyScore: result.difficultyScore ?? 0,
-    quoteCents: result.quoteCents ?? 0,
-    timelineCount: result.timeline.length,
+    difficultyScore: result.record.difficultyScore ?? 0,
+    quoteCents: result.record.quoteCents ?? 0,
+    timelineCount: result.record.timeline.length,
+    analysisSource: result.analysisSource,
+    confidence: result.confidence,
+    recommendedServices: result.recommendedServices,
+    runId: result.runId,
   });
 
   return NextResponse.json(response, { status: 200 });

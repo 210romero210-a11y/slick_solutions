@@ -39,6 +39,10 @@ export const assessmentResponseSchema = z.object({
   difficultyScore: z.number().int().min(0).max(100),
   quoteCents: z.number().int().positive(),
   timelineCount: z.number().int().positive(),
+  analysisSource: z.enum(["ollama", "heuristic"]),
+  confidence: z.number().min(0).max(1),
+  recommendedServices: z.array(z.string()),
+  runId: z.string(),
 });
 
 export const dynamicPricingRequestSchema = z.object({

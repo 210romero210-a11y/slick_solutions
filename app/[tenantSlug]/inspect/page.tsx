@@ -1,8 +1,4 @@
-"use client";
-
-import type { AssessmentSubmissionResponse, SelfAssessmentPhoto } from "@slick/contracts";
-import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import type { ReactElement } from "react";
 
 import { InspectClient } from "./InspectClient";
 

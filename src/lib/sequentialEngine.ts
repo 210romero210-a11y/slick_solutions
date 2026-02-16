@@ -8,6 +8,7 @@ import type {
   OnboardingRequest,
   OnboardingResponse,
 } from "./intakeSchemas";
+import { runVisionAssessment } from "./aiRuntime";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -44,7 +45,25 @@ export function runAssessment(input: CustomerIntake): InspectionRecord {
     timeline: [],
   };
 
-  return orchestrateInspection(record);
+  const orchestrated = orchestrateInspection(initialRecord);
+  const aiDifficulty = severityToDifficulty(aiResult.severity);
+
+  const blendedDifficulty = clampDifficulty((orchestrated.difficultyScore ?? aiDifficulty) * 0.4 + aiDifficulty * 0.6);
+
+  const record: InspectionRecord = {
+    ...orchestrated,
+    damageSummary: aiResult.summary,
+    difficultyScore: blendedDifficulty,
+    quoteCents: estimateQuoteFromDifficulty(blendedDifficulty),
+  };
+
+  return {
+    record,
+    analysisSource: aiResult.analysisSource,
+    confidence: aiResult.confidence,
+    recommendedServices: aiResult.recommendedServices,
+    runId: aiResult.runId,
+  };
 }
 
 function calculateConditionMultiplier(difficultyScore: number): number {

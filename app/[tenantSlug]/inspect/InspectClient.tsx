@@ -12,6 +12,10 @@ type AssessmentResult = {
   difficultyScore: number;
   quoteCents: number;
   timelineCount: number;
+  analysisSource: "ollama" | "heuristic";
+  confidence: number;
+  recommendedServices: string[];
+  runId: string;
 };
 
 const requiredAngles: string[] = [
@@ -131,6 +135,10 @@ export function InspectClient({ tenantSlug }: InspectClientProps): ReactElement 
           <p>Status: {result.status}</p>
           <p>Difficulty score: {result.difficultyScore}</p>
           <p>Estimated total: ${(result.quoteCents / 100).toFixed(2)}</p>
+          <p>Analysis source: {result.analysisSource}</p>
+          <p>AI confidence: {(result.confidence * 100).toFixed(0)}%</p>
+          <p>Recommended services: {result.recommendedServices.join(", ")}</p>
+          <p>Agent run ID: {result.runId}</p>
           <p>Timeline events generated: {result.timelineCount}</p>
         </section>
       ) : null}
