@@ -3,3 +3,4 @@ export * from "./inspectionOrchestration";
 export * from "./quoteDelivery";
 export * from "./technicianRouting";
 export * from "./insuranceReport";
+export * from "./selfAssessmentPipeline";

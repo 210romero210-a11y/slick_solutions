@@ -35,50 +35,8 @@ function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
   });
 }
 
-function severityToDifficulty(severity: "low" | "medium" | "high" | "critical"): number {
-  switch (severity) {
-    case "low":
-      return 28;
-    case "medium":
-      return 52;
-    case "high":
-      return 74;
-    case "critical":
-      return 92;
-    default:
-      return 50;
-  }
-}
-
-function clampDifficulty(score: number): number {
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function estimateQuoteFromDifficulty(difficultyScore: number): number {
-  const laborCents = 35000 + difficultyScore * 120;
-  const materialsCents = 18000 + difficultyScore * 85;
-  return laborCents + materialsCents;
-}
-
-export type AssessmentPipelineResult = {
-  record: InspectionRecord;
-  analysisSource: "ollama" | "heuristic";
-  confidence: number;
-  recommendedServices: string[];
-  runId: string;
-};
-
-export async function runAssessment(input: CustomerIntake): Promise<AssessmentPipelineResult> {
-  const aiInput = {
-    tenantSlug: input.tenantSlug,
-    vin: input.vin,
-    photoUrls: input.photoUrls,
-    ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
-  };
-
-  const aiResult = await runVisionAssessment(aiInput);
-
-  const initialRecord: InspectionRecord = {
+export function runAssessment(input: CustomerIntake): InspectionRecord {
+  const record: InspectionRecord = {
     inspectionId: input.inspectionId,
     tenantSlug: input.tenantSlug,
     vin: input.vin,

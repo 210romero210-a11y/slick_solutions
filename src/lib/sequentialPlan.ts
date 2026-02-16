@@ -99,7 +99,7 @@ export const sequentialImplementationPlan: PlanPhase[] = [
         id: "4.1",
         title: "Vision model connection",
         description: "Replace heuristic triage with Ollama Llama 3.2 Vision inference.",
-        status: "completed",
+        status: "pending",
       },
       {
         id: "4.2",
