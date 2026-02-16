@@ -22,7 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         message: "Invalid signed upload request.",
         issues: parsedBody.error.issues,
       },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
