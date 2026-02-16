@@ -34,7 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const token = `${encoded}.${signature}`;
 
   return NextResponse.json({
-    uploadUrl: `/api/self-assessments/uploads/${token}`,
+    uploadUrl: "/api/self-assessments/uploads/"+token,
     expiresAt: new Date(expiresAtMs).toISOString(),
   });
 }
