@@ -19,7 +19,7 @@ This codebase now implements a sequential foundation for the self-assessment wor
 
 ## Next sequential tasks to continue implementation
 
-1. Replace checklist-only media with signed uploads to Convex file storage.
+1. ✅ Replace checklist-only media with signed upload flow that returns Convex-style storage IDs.
 2. Integrate VIN decode service and enrich pricing by vehicle class.
 3. Call Ollama Cloud for live image triage instead of deterministic score.
 4. Persist assessment + estimate records in Convex tables.
