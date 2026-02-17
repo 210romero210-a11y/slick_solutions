@@ -45,6 +45,21 @@ export const assessmentResponseSchema = z.object({
   runId: z.string(),
 });
 
+export const assessmentReviewRequestSchema = z.object({
+  runId: z.string().min(1),
+  reviewer: z.string().min(2),
+  status: z.enum(["approved", "rejected"]),
+  notes: z.string().max(2000).optional(),
+});
+
+export const assessmentReviewResponseSchema = z.object({
+  runId: z.string(),
+  reviewStatus: z.enum(["pending", "approved", "rejected"]),
+  reviewedBy: z.string().optional(),
+  reviewedAt: z.string().datetime().optional(),
+  reviewNotes: z.string().max(2000).optional(),
+});
+
 export const dynamicPricingRequestSchema = z.object({
   baseServicePriceCents: z.number().int().positive(),
   difficultyScore: z.number().min(0).max(100),
