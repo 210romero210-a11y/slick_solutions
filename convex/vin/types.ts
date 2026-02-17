@@ -3,6 +3,7 @@ export type VinDecodedProfile = {
   vehicleType: string;
   make: string;
   model: string;
+  modelYear: string;
   trim: string;
   series: string;
   doors: number | null;

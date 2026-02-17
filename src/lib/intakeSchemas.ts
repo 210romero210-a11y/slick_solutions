@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+const normalizedVehicleClassSchema = z.enum(["sedan", "suv", "truck", "van", "coupe", "unknown"]);
+const normalizedVehicleSizeSchema = z.enum(["compact", "midsize", "fullsize", "heavy_duty", "unknown"]);
+
+export const vehicleAttributesSchema = z.object({
+  normalizedVehicleClass: normalizedVehicleClassSchema,
+  normalizedVehicleSize: normalizedVehicleSizeSchema,
+  decodedModelYear: z.number().int().min(1900).max(2100).nullable(),
+  decodeFallbackUsed: z.boolean().default(false),
+});
+
 export const onboardingRequestSchema = z.object({
   businessName: z.string().min(2),
   tenantSlug: z
@@ -61,18 +71,22 @@ export const assessmentReviewResponseSchema = z.object({
 });
 
 export const dynamicPricingRequestSchema = z.object({
+  vin: z.string().length(17).optional(),
   baseServicePriceCents: z.number().int().positive(),
   difficultyScore: z.number().min(0).max(100),
   vehicleSizeMultiplier: z.number().min(0.8).max(2),
   demandMultiplier: z.number().min(0.8).max(2),
   addOnsCents: z.number().int().nonnegative().default(0),
   discountCents: z.number().int().nonnegative().default(0),
+  vehicleAttributes: vehicleAttributesSchema.optional(),
 });
 
 export const dynamicPricingResponseSchema = z.object({
   subtotalCents: z.number().int(),
   totalCents: z.number().int(),
   appliedConditionMultiplier: z.number(),
+  appliedVehicleClassMultiplier: z.number().positive(),
+  vehicleAttributes: vehicleAttributesSchema,
   explanation: z.string(),
 });
 

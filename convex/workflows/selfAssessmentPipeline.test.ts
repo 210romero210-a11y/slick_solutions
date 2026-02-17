@@ -99,3 +99,37 @@ test("uses returned confidence and fallback flag from AI runtime response", asyn
   assert.equal(triage.metadata?.provider, "ollama");
   assert.equal(triage.metadata?.fallbackUsed, true);
 });
+
+
+test("applies decoded vehicle class multiplier to estimate", async () => {
+  const response = await runSelfAssessmentPipeline(
+    {
+      ...buildRequest(),
+      pricing: {
+        ...buildRequest().pricing,
+        vehicleAttributes: {
+          normalizedVehicleClass: "truck",
+          normalizedVehicleSize: "fullsize",
+          decodedModelYear: 2021,
+          decodeFallbackUsed: false,
+        },
+      },
+    },
+    {
+      runVisionInference: async () => ({
+        summary: "Detected high paint defects",
+        severity: "high",
+        confidence: 0.91,
+        recommendedServices: ["Paint correction"],
+        provider: "ollama",
+        model: "llama3.2-vision",
+        fallbackUsed: false,
+        runId: "run_3",
+        analysisSource: "ollama",
+      }),
+    },
+  );
+
+  assert.equal(response.estimate?.appliedVehicleClassMultiplier, 1.18);
+  assert.equal(response.estimate?.vehicleAttributes.normalizedVehicleClass, "truck");
+});
