@@ -46,8 +46,13 @@ const severityToScore = (severity: VisionAssessmentResult["severity"]): number =
       return 75;
     case "medium":
       return 55;
-    default:
+    case "low":
       return 35;
+    default: {
+      // Ensure we get a compile-time error if a new severity is added
+      const _exhaustiveCheck: never = severity;
+      return _exhaustiveCheck;
+    }
   }
 };
 
