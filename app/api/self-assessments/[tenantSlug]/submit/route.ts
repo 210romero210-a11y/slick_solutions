@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     tenantSlug,
   };
 
-  const response = runSelfAssessmentPipeline(payload);
+  const response = await runSelfAssessmentPipeline(payload);
   const validatedResponse = AssessmentSubmissionResponseSchema.parse(response);
 
   return NextResponse.json(validatedResponse, {

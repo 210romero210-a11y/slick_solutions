@@ -1,4 +1,4 @@
-import {
+import type {
   AssessmentSubmissionRequest,
   AssessmentSubmissionResponse,
   EstimateLineItem,
@@ -6,9 +6,16 @@ import {
   SelfAssessmentPhoto,
 } from "@slick/contracts";
 
+import type { VisionAgentInput, VisionAssessmentResult } from "../../src/lib/aiRuntime";
+
 const nowIso = (): string => new Date().toISOString();
 
 const minimumPhotoCount = 5;
+
+const defaultRunVisionInference = async (input: VisionAgentInput): Promise<VisionAssessmentResult> => {
+  const { runVisionAssessment } = await import("../../src/lib/aiRuntime");
+  return runVisionAssessment(input);
+};
 
 const sanitizeVin = (vin: string): string => vin.trim().toUpperCase();
 
@@ -29,6 +36,46 @@ const inferSeverityScore = (photos: SelfAssessmentPhoto[], hasContamination: boo
   const contaminationBonus = hasContamination ? 12 : 0;
 
   return Math.min(100, 25 + detailShots * 14 + panelShots * 6 + contaminationBonus);
+};
+
+const severityToScore = (severity: VisionAssessmentResult["severity"]): number => {
+  switch (severity) {
+    case "critical":
+      return 90;
+    case "high":
+      return 75;
+    case "medium":
+      return 55;
+    case "low":
+      return 35;
+    default: {
+      // Ensure we get a compile-time error if a new severity is added
+      const _exhaustiveCheck: never = severity;
+      return _exhaustiveCheck;
+    }
+  }
+};
+
+const confidenceLabelFromScore = (confidence: number): "low" | "medium" | "high" => {
+  if (confidence >= 0.8) {
+    return "high";
+  }
+  if (confidence >= 0.55) {
+    return "medium";
+  }
+  return "low";
+};
+
+type VisionInference = {
+  severityScore: number;
+  confidenceScore: number;
+  provider: string;
+  model: string;
+  fallbackUsed: boolean;
+};
+
+export type SelfAssessmentPipelineDeps = {
+  runVisionInference?: (input: VisionAgentInput) => Promise<VisionAssessmentResult>;
 };
 
 const buildLineItems = (
@@ -75,9 +122,10 @@ const buildLineItems = (
 const sumLineItems = (items: EstimateLineItem[]): number =>
   items.reduce((total, item) => total + item.totalPriceCents, 0);
 
-export const runSelfAssessmentPipeline = (
+export const runSelfAssessmentPipeline = async (
   request: AssessmentSubmissionRequest,
-): AssessmentSubmissionResponse => {
+  deps: SelfAssessmentPipelineDeps = {},
+): Promise<AssessmentSubmissionResponse> => {
   const vin = sanitizeVin(request.vehicle.vin);
   const contaminationDeclared = request.assessment.interiorContaminationLevel !== "none";
 
@@ -98,24 +146,59 @@ export const runSelfAssessmentPipeline = (
     };
   }
 
+  const photoUrls = request.photos.map((photo) => photo.storageId ?? photo.id);
+  const invokeVision = deps.runVisionInference ?? defaultRunVisionInference;
+
+  let visionInference: VisionInference;
+
+  try {
+    const visionInput: VisionAgentInput = {
+      tenantSlug: request.tenantSlug,
+      vin,
+      photoUrls,
+      ...(request.assessment.notes ? { concernNotes: request.assessment.notes } : {}),
+    };
+
+    const visionResult = await invokeVision(visionInput);
+
+    const contaminationAdjustment = contaminationDeclared ? 8 : 0;
+
+    visionInference = {
+      severityScore: Math.min(100, severityToScore(visionResult.severity) + contaminationAdjustment),
+      confidenceScore: visionResult.confidence,
+      provider: visionResult.provider,
+      model: visionResult.model,
+      fallbackUsed: visionResult.fallbackUsed,
+    };
+  } catch {
+    visionInference = {
+      severityScore: inferSeverityScore(request.photos, contaminationDeclared),
+      confidenceScore: 0.45,
+      provider: "heuristic",
+      model: "threshold-fallback",
+      fallbackUsed: true,
+    };
+  }
+
   timeline.push(
     toInspectionState("agent_damage_triage", "agent", {
-      model: "llama3.2-vision",
-      provider: "ollama-cloud",
+      model: visionInference.model,
+      provider: visionInference.provider,
+      fallbackUsed: visionInference.fallbackUsed,
+      confidenceScore: Number(visionInference.confidenceScore.toFixed(2)),
     }),
   );
 
-  const severityScore = inferSeverityScore(request.photos, contaminationDeclared);
   const lineItems = buildLineItems(
     request.pricing.baseExteriorServicePriceCents,
-    severityScore,
+    visionInference.severityScore,
     request.assessment.requestsCeramicCoating,
   );
   const subtotalCents = sumLineItems(lineItems);
   const taxCents = Math.round(subtotalCents * request.pricing.taxRate);
 
   timeline.push(
-    toInspectionState("agent_cost_estimate", "agent", { severityScore }),
+    toInspectionState("agent_cost_estimate", "agent", { severityScore: visionInference.severityScore }),
     toInspectionState("quote_ready", "system", { subtotalCents, taxCents }),
     toInspectionState("quote_delivered", "system", { delivery: "web" }),
   );
@@ -130,7 +213,7 @@ export const runSelfAssessmentPipeline = (
       totalCents: subtotalCents + taxCents,
       currency: request.pricing.currency,
       lineItems,
-      confidence: severityScore >= 65 ? "high" : "medium",
+      confidence: confidenceLabelFromScore(visionInference.confidenceScore),
     },
     timeline,
   };

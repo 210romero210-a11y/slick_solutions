@@ -15,11 +15,14 @@ const visionOutputSchema = z.object({
   severity: z.enum(["low", "medium", "high", "critical"]),
   confidence: z.number().min(0).max(1),
   recommendedServices: z.array(z.string().min(2)).min(1),
+  provider: z.enum(["ollama", "heuristic"]),
+  model: z.string().min(1),
+  fallbackUsed: z.boolean(),
 });
 
 type VisionOutput = z.infer<typeof visionOutputSchema>;
 
-type VisionAgentInput = {
+export type VisionAgentInput = {
   tenantSlug: string;
   vin: string;
   concernNotes?: string;
@@ -69,6 +72,9 @@ function heuristicVisionFallback(input: VisionAgentInput): VisionOutput {
       score > 0.75
         ? ["Paint correction", "Ceramic coating", "Deep interior extraction"]
         : ["Exterior detail", "Interior detail"],
+    provider: "heuristic",
+    model: "heuristic-fallback",
+    fallbackUsed: true,
   };
 }
 
@@ -89,6 +95,7 @@ const visionAssessmentAgent: AgentDefinition<VisionAgentInput, VisionOutput> = {
   memoryLimit: 8,
   async execute(input): Promise<VisionOutput> {
     const baseUrl = process.env.OLLAMA_BASE_URL;
+    const model = process.env.OLLAMA_VISION_MODEL ?? "llama3.2-vision";
 
     if (!baseUrl) {
       return heuristicVisionFallback(input);
@@ -109,21 +116,41 @@ const visionAssessmentAgent: AgentDefinition<VisionAgentInput, VisionOutput> = {
       `Customer notes: ${input.concernNotes ?? "none"}`,
     ].join("\n");
 
-    const response = await client.vision({
-      model: process.env.OLLAMA_VISION_MODEL ?? "llama3.2-vision",
-      prompt,
-      images: input.photoUrls,
-      stream: false,
-      options: { temperature: 0.1 },
-    });
+    try {
+      const response = await client.vision({
+        model,
+        prompt,
+        images: input.photoUrls,
+        stream: false,
+        options: { temperature: 0.1 },
+      });
 
-    const parsed = visionOutputSchema.safeParse(extractJsonObject(response.response));
+      const payload = extractJsonObject(response.response);
+      const parsed = visionOutputSchema.safeParse({
+        ...(typeof payload === "object" && payload !== null ? payload : {}),
+        provider: "ollama",
+        model,
+        fallbackUsed: false,
+      });
 
-    if (!parsed.success) {
-      return heuristicVisionFallback(input);
+      if (!parsed.success) {
+        return {
+          ...heuristicVisionFallback(input),
+          provider: "ollama",
+          model,
+          fallbackUsed: true,
+        };
+      }
+
+      return parsed.data;
+    } catch {
+      return {
+        ...heuristicVisionFallback(input),
+        provider: "ollama",
+        model,
+        fallbackUsed: true,
+      };
     }
-
-    return parsed.data;
   },
 };
 
@@ -144,7 +171,7 @@ export async function runVisionAssessment(input: VisionAgentInput): Promise<Visi
     { recommendedServices: output.recommendedServices },
   );
 
-  const analysisSource: "ollama" | "heuristic" = process.env.OLLAMA_BASE_URL ? "ollama" : "heuristic";
+  const analysisSource: "ollama" | "heuristic" = output.fallbackUsed ? "heuristic" : output.provider;
 
   return {
     ...output,
