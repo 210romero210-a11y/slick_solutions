@@ -10,6 +10,7 @@ import type {
   OnboardingResponse,
 } from "./intakeSchemas";
 import { runVisionAssessment } from "./aiRuntime";
+import { getProviderEnvConfig } from "./providerConfig";
 import { classMultiplier } from "./vinEnrichment";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -148,13 +149,73 @@ export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingR
   };
 }
 
-export function createBooking(input: BookingRequest): BookingResponse {
+async function createStripePaymentIntent(input: BookingRequest, amountCents: number): Promise<{
+  id: string;
+  clientSecret: string;
+  createdAt: string;
+}> {
+  const config = getProviderEnvConfig();
+  const body = new URLSearchParams({
+    amount: String(amountCents),
+    currency: config.stripeCurrency,
+    receipt_email: input.customerEmail,
+    "metadata[tenantSlug]": input.tenantSlug,
+    "metadata[inspectionId]": input.inspectionId,
+  });
+
+  const response = await fetch("https://api.stripe.com/v1/payment_intents", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create Stripe PaymentIntent (${response.status}): ${errorText}`);
+  }
+
+  const payload = (await response.json()) as {
+    id: string;
+    client_secret: string | null;
+    created: number;
+  };
+
+  if (!payload.client_secret) {
+    throw new Error(`Stripe PaymentIntent ${payload.id} did not return a client secret.`);
+  }
+
+  return {
+    id: payload.id,
+    clientSecret: payload.client_secret,
+    createdAt: new Date(payload.created * 1000).toISOString(),
+  };
+}
+
+export async function createBooking(input: BookingRequest): Promise<BookingResponse> {
   const depositCents = input.requiresDeposit ? Math.round(input.approvedQuoteCents * 0.2) : 0;
+
+  if (!input.requiresDeposit) {
+    return {
+      bookingId: generateId("booking"),
+      status: "confirmed",
+      depositCents,
+      paymentIntentClientSecret: null,
+      paymentIntentId: null,
+      paymentIntentCreatedAt: null,
+    };
+  }
+
+  const paymentIntent = await createStripePaymentIntent(input, depositCents);
 
   return {
     bookingId: generateId("booking"),
-    status: input.requiresDeposit ? "pending_deposit" : "confirmed",
+    status: "pending_deposit",
     depositCents,
-    paymentIntentClientSecret: input.requiresDeposit ? `pi_stub_${generateId("secret")}` : null,
+    paymentIntentClientSecret: paymentIntent.clientSecret,
+    paymentIntentId: paymentIntent.id,
+    paymentIntentCreatedAt: paymentIntent.createdAt,
   };
 }

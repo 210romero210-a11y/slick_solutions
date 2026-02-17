@@ -11,6 +11,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const response = bookingResponseSchema.parse(createBooking(parsed.data));
+  const response = bookingResponseSchema.parse(await createBooking(parsed.data));
   return NextResponse.json(response, { status: 201 });
 }

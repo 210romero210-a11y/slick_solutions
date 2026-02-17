@@ -104,6 +104,8 @@ export const bookingResponseSchema = z.object({
   status: z.enum(["pending_deposit", "confirmed"]),
   depositCents: z.number().int().nonnegative(),
   paymentIntentClientSecret: z.string().nullable(),
+  paymentIntentId: z.string().nullable(),
+  paymentIntentCreatedAt: z.string().datetime().nullable(),
 });
 
 export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>;

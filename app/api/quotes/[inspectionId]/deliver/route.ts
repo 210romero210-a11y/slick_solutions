@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deliverQuoteSmsStub, deliverQuoteWeb, orchestrateInspection } from "../../../../../convex/workflows";
+import { deliverQuoteSms, deliverQuoteWeb, orchestrateInspection } from "../../../../../convex/workflows";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ inspectionId: string }> }) {
   const formData = await request.formData();
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ in
   });
 
   const webDelivery = deliverQuoteWeb(inspection);
-  const smsDelivery = deliverQuoteSmsStub(inspection);
+  const smsDelivery = await deliverQuoteSms(inspection);
 
   return NextResponse.json({ inspection, delivery: { webDelivery, smsDelivery } }, { status: 200 });
 }
