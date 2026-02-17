@@ -290,4 +290,43 @@ export default defineSchema({
   })
     .index("by_tenant_job_event_at", ["tenantId", "jobId", "eventAt"])
     .index("by_tenant_to_status", ["tenantId", "toStatus", "eventAt"]),
+
+  assessmentRuns: defineTable({
+    runId: v.string(),
+    inspectionId: v.string(),
+    tenantSlug: v.string(),
+    vin: v.string(),
+    model: v.string(),
+    source: v.union(v.literal("ollama"), v.literal("heuristic_fallback")),
+    severity: v.union(v.literal("minor"), v.literal("moderate"), v.literal("major"), v.literal("critical")),
+    confidence: v.number(),
+    summary: v.string(),
+    recommendedServices: v.array(v.string()),
+    rawResponse: v.optional(v.string()),
+    needsManualReview: v.boolean(),
+    reviewStatus: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    reviewedBy: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    reviewNotes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_run_id", ["runId"])
+    .index("by_tenant_slug", ["tenantSlug"])
+    .index("by_tenant_review_status", ["tenantSlug", "reviewStatus"])
+    .index("by_tenant_created_at", ["tenantSlug", "createdAt"])
+    .index("by_tenant_reviewed_at", ["tenantSlug", "reviewedAt"]),
+
+  assessmentReviewDecisions: defineTable({
+    runId: v.string(),
+    tenantSlug: v.string(),
+    reviewStatus: v.union(v.literal("approved"), v.literal("rejected")),
+    reviewer: v.string(),
+    notes: v.optional(v.string()),
+    reviewedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_run_id", ["runId"])
+    .index("by_tenant_slug", ["tenantSlug"])
+    .index("by_tenant_review_status", ["tenantSlug", "reviewStatus"])
+    .index("by_tenant_reviewed_at", ["tenantSlug", "reviewedAt"]),
 });
