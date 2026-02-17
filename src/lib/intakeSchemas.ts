@@ -57,7 +57,7 @@ export const assessmentReviewResponseSchema = z.object({
   reviewStatus: z.enum(["pending", "approved", "rejected"]),
   reviewedBy: z.string().optional(),
   reviewedAt: z.string().datetime().optional(),
-  reviewNotes: z.string().optional(),
+  reviewNotes: z.string().max(2000).optional(),
 });
 
 export const dynamicPricingRequestSchema = z.object({
