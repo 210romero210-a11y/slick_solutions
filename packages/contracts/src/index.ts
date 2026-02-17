@@ -29,6 +29,7 @@ export const SelfAssessmentPhotoSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(["front", "rear", "left", "right", "interior", "detail"]),
   uploadedAt: z.string().datetime(),
+  storageId: z.string().min(1).optional(),
 });
 
 export const AssessmentSubmissionRequestSchema = z.object({
