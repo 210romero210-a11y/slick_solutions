@@ -83,7 +83,7 @@ function fromConvexRun(run: {
     needsManualReview: run.needsManualReview,
     reviewStatus: run.reviewStatus,
     ...(run.reviewedBy ? { reviewedBy: run.reviewedBy } : {}),
-    ...(run.reviewedAt ? { reviewedAt: new Date(run.reviewedAt).toISOString() } : {}),
+    ...(run.reviewedAt != null ? { reviewedAt: new Date(run.reviewedAt).toISOString() } : {}),
     ...(run.reviewNotes ? { reviewNotes: run.reviewNotes } : {}),
     createdAt: new Date(run.createdAt).toISOString(),
   };
