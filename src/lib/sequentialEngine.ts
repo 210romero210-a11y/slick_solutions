@@ -1,5 +1,6 @@
 import { orchestrateInspection, type InspectionRecord, type PhotoAsset } from "../../convex/workflows";
 import type {
+  AssessmentResponse,
   BookingRequest,
   BookingResponse,
   CustomerIntake,
@@ -35,8 +36,38 @@ function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
   });
 }
 
-export function runAssessment(input: CustomerIntake): InspectionRecord {
-  const record: InspectionRecord = {
+function severityToDifficulty(severity: "low" | "medium" | "high" | "critical"): number {
+  if (severity === "low") {
+    return 20;
+  }
+  if (severity === "medium") {
+    return 45;
+  }
+  if (severity === "high") {
+    return 70;
+  }
+
+  return 90;
+}
+
+function clampDifficulty(score: number): number {
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function estimateQuoteFromDifficulty(difficultyScore: number): number {
+  return 53_000 + difficultyScore * 205;
+}
+
+export type AssessmentRunResult = {
+  record: InspectionRecord;
+  analysisSource: AssessmentResponse["analysisSource"];
+  confidence: number;
+  recommendedServices: string[];
+  runId: string;
+};
+
+export async function runAssessment(input: CustomerIntake): Promise<AssessmentRunResult> {
+  const initializedRecord: InspectionRecord = {
     inspectionId: input.inspectionId,
     tenantSlug: input.tenantSlug,
     vin: input.vin,
@@ -45,7 +76,13 @@ export function runAssessment(input: CustomerIntake): InspectionRecord {
     timeline: [],
   };
 
-  const orchestrated = orchestrateInspection(initialRecord);
+  const orchestrated = orchestrateInspection(initializedRecord);
+  const aiResult = await runVisionAssessment({
+    tenantSlug: input.tenantSlug,
+    vin: input.vin,
+    photoUrls: input.photoUrls,
+    ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
+  });
   const aiDifficulty = severityToDifficulty(aiResult.severity);
 
   const blendedDifficulty = clampDifficulty((orchestrated.difficultyScore ?? aiDifficulty) * 0.4 + aiDifficulty * 0.6);
