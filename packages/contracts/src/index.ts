@@ -23,6 +23,15 @@ export const DecodeVinResponseSchema = z.object({
   make: z.string(),
   model: z.string(),
   modelYear: z.string(),
+  normalizedVehicleClass: z.enum(["sedan", "suv", "truck", "van", "coupe", "unknown"]),
+  normalizedVehicleSize: z.enum(["compact", "midsize", "fullsize", "heavy_duty", "unknown"]),
+});
+
+export const VehicleAttributesSchema = z.object({
+  normalizedVehicleClass: z.enum(["sedan", "suv", "truck", "van", "coupe", "unknown"]),
+  normalizedVehicleSize: z.enum(["compact", "midsize", "fullsize", "heavy_duty", "unknown"]),
+  decodedModelYear: z.number().int().min(1900).max(2100).nullable(),
+  decodeFallbackUsed: z.boolean().default(false),
 });
 
 export const SelfAssessmentPhotoSchema = z.object({
@@ -53,6 +62,7 @@ export const AssessmentSubmissionRequestSchema = z.object({
     baseExteriorServicePriceCents: z.number().int().positive(),
     taxRate: z.number().min(0).max(0.2),
     currency: z.string().length(3),
+    vehicleAttributes: VehicleAttributesSchema.optional(),
   }),
   photos: z.array(SelfAssessmentPhotoSchema).min(1),
 });
@@ -90,6 +100,8 @@ export const AssessmentSubmissionResponseSchema = z.object({
       currency: z.string().length(3),
       lineItems: z.array(EstimateLineItemSchema),
       confidence: z.enum(["low", "medium", "high"]),
+      appliedVehicleClassMultiplier: z.number().positive(),
+      vehicleAttributes: VehicleAttributesSchema,
     })
     .optional(),
   timeline: z.array(
@@ -97,7 +109,7 @@ export const AssessmentSubmissionResponseSchema = z.object({
       state: InspectionStateSchema,
       actor: z.enum(["customer", "system", "agent"]),
       at: z.string().datetime(),
-      metadata: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+      metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
     }),
   ),
 });
@@ -106,6 +118,7 @@ export type CreateLeadRequest = z.infer<typeof CreateLeadRequestSchema>;
 export type CreateLeadResponse = z.infer<typeof CreateLeadResponseSchema>;
 export type DecodeVinRequest = z.infer<typeof DecodeVinRequestSchema>;
 export type DecodeVinResponse = z.infer<typeof DecodeVinResponseSchema>;
+export type VehicleAttributes = z.infer<typeof VehicleAttributesSchema>;
 export type SelfAssessmentPhoto = z.infer<typeof SelfAssessmentPhotoSchema>;
 export type AssessmentSubmissionRequest = z.infer<typeof AssessmentSubmissionRequestSchema>;
 export type EstimateLineItem = z.infer<typeof EstimateLineItemSchema>;

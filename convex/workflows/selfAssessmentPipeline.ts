@@ -17,6 +17,23 @@ const defaultRunVisionInference = async (input: VisionAgentInput): Promise<Visio
   return runVisionAssessment(input);
 };
 
+
+const classMultiplier = (vehicleClass: "sedan" | "suv" | "truck" | "van" | "coupe" | "unknown"): number => {
+  switch (vehicleClass) {
+    case "truck":
+      return 1.18;
+    case "van":
+      return 1.12;
+    case "suv":
+      return 1.08;
+    case "coupe":
+      return 1.04;
+    case "sedan":
+      return 1;
+    default:
+      return 1;
+  }
+};
 const sanitizeVin = (vin: string): string => vin.trim().toUpperCase();
 
 const toInspectionState = (
@@ -82,9 +99,10 @@ const buildLineItems = (
   basePriceCents: number,
   severityScore: number,
   requestsCeramic: boolean,
+  vehicleClassMultiplier: number,
 ): EstimateLineItem[] => {
   const conditionMultiplier = 1 + severityScore / 250;
-  const correctionPrice = Math.round(basePriceCents * conditionMultiplier);
+  const correctionPrice = Math.round(basePriceCents * conditionMultiplier * vehicleClassMultiplier);
 
   const items: EstimateLineItem[] = [
     {
@@ -189,16 +207,25 @@ export const runSelfAssessmentPipeline = async (
     }),
   );
 
+  const vehicleAttributes = request.pricing.vehicleAttributes ?? {
+    normalizedVehicleClass: "unknown",
+    normalizedVehicleSize: "unknown",
+    decodedModelYear: null,
+    decodeFallbackUsed: true,
+  };
+  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
+
   const lineItems = buildLineItems(
     request.pricing.baseExteriorServicePriceCents,
     visionInference.severityScore,
     request.assessment.requestsCeramicCoating,
+    appliedVehicleClassMultiplier,
   );
   const subtotalCents = sumLineItems(lineItems);
   const taxCents = Math.round(subtotalCents * request.pricing.taxRate);
 
   timeline.push(
-    toInspectionState("agent_cost_estimate", "agent", { severityScore: visionInference.severityScore }),
+    toInspectionState("agent_cost_estimate", "agent", { severityScore: visionInference.severityScore, vehicleClass: vehicleAttributes.normalizedVehicleClass, vehicleClassMultiplier: appliedVehicleClassMultiplier, decodeFallbackUsed: vehicleAttributes.decodeFallbackUsed }),
     toInspectionState("quote_ready", "system", { subtotalCents, taxCents }),
     toInspectionState("quote_delivered", "system", { delivery: "web" }),
   );
@@ -214,6 +241,8 @@ export const runSelfAssessmentPipeline = async (
       currency: request.pricing.currency,
       lineItems,
       confidence: confidenceLabelFromScore(visionInference.confidenceScore),
+      appliedVehicleClassMultiplier,
+      vehicleAttributes,
     },
     timeline,
   };

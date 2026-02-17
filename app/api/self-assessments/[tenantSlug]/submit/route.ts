@@ -6,6 +6,7 @@ import {
 import { NextRequest, NextResponse } from "next/server";
 
 import { runSelfAssessmentPipeline } from "../../../../../convex/workflows";
+import { enrichVehicleFromVin } from "@/lib/vinEnrichment";
 
 type RouteContext = {
   params: Promise<{
@@ -26,9 +27,16 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   }
 
   const { tenantSlug } = await context.params;
+  const vehicleAttributes =
+    parsedBody.data.pricing.vehicleAttributes ?? (await enrichVehicleFromVin(parsedBody.data.vehicle.vin));
+
   const payload: AssessmentSubmissionRequest = {
     ...parsedBody.data,
     tenantSlug,
+    pricing: {
+      ...parsedBody.data.pricing,
+      vehicleAttributes,
+    },
   };
 
   const response = await runSelfAssessmentPipeline(payload);

@@ -49,6 +49,7 @@ export const normalizeDecodedProfile = (
     vehicleType: required(coalesce(raw.VehicleType)),
     make: required(coalesce(raw.Make)),
     model: required(coalesce(raw.Model)),
+    modelYear: required(coalesce(raw.ModelYear)),
     trim: required(coalesce(raw.Trim, raw.Trim2)),
     series: required(coalesce(raw.Series, raw.Series2)),
     doors,
@@ -66,6 +67,7 @@ export const buildEmbeddingText = (profile: VinDecodedProfile): string =>
   [
     `Make: ${profile.make}`,
     `Model: ${profile.model}`,
+    `Model Year: ${profile.modelYear}`,
     `Trim: ${profile.trim}`,
     `Series: ${profile.series}`,
     `Body Class: ${profile.bodyClass}`,

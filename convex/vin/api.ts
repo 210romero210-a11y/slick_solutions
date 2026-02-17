@@ -5,6 +5,7 @@ export const vinDecodedProfileValidator = v.object({
   vehicleType: v.string(),
   make: v.string(),
   model: v.string(),
+  modelYear: v.string(),
   trim: v.string(),
   series: v.string(),
   doors: v.union(v.number(), v.null()),

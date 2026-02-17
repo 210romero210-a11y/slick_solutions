@@ -10,6 +10,7 @@ import type {
   OnboardingResponse,
 } from "./intakeSchemas";
 import { runVisionAssessment } from "./aiRuntime";
+import { classMultiplier } from "./vinEnrichment";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -118,8 +119,21 @@ function calculateConditionMultiplier(difficultyScore: number): number {
 
 export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingResponse {
   const appliedConditionMultiplier = calculateConditionMultiplier(input.difficultyScore);
+  const vehicleAttributes =
+    input.vehicleAttributes ?? {
+      normalizedVehicleClass: "unknown",
+      normalizedVehicleSize: "unknown",
+      decodedModelYear: null,
+      decodeFallbackUsed: true,
+    };
+  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
+
   const subtotalCents = Math.round(
-    input.baseServicePriceCents * appliedConditionMultiplier * input.vehicleSizeMultiplier * input.demandMultiplier,
+    input.baseServicePriceCents *
+      appliedConditionMultiplier *
+      appliedVehicleClassMultiplier *
+      input.vehicleSizeMultiplier *
+      input.demandMultiplier,
   );
   const totalCents = Math.max(0, subtotalCents + input.addOnsCents - input.discountCents);
 
@@ -127,8 +141,10 @@ export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingR
     subtotalCents,
     totalCents,
     appliedConditionMultiplier,
+    appliedVehicleClassMultiplier,
+    vehicleAttributes,
     explanation:
-      "Base price adjusted by condition severity, vehicle size, and demand profile. Add-ons and discounts are then applied.",
+      "Base price adjusted by condition severity, decoded vehicle class, vehicle size, and demand profile. Add-ons and discounts are then applied.",
   };
 }
 
