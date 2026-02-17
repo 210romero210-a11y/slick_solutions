@@ -1,12 +1,14 @@
 import { v } from "convex/values";
+
 import { action, mutation } from "../_generated/server";
-import { api } from "../_generated/api";
+import { requireAuthenticatedIdentity } from "../model/auth";
 import {
   vinDecodedProfileValidator,
   vinQuoteResponseValidator,
   vinSignalOverridesValidator,
   vinSignalValidator,
 } from "./api";
+import { decodeVinProfile } from "./decodeClient";
 import { buildEmbeddingText, normalizeVin } from "./normalize";
 import { computeVinSignals } from "./rules";
 
@@ -24,7 +26,9 @@ export const persistDecodedVinProfile = mutation({
     embedding: v.array(v.number()),
   },
   returns: v.string(),
-  handler: async (ctx, args) => {
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+
     const now = Date.now();
     const id = await ctx.db.insert("vinProfiles", {
       tenantId: args.tenantId,
@@ -51,13 +55,11 @@ export const decodeAndPersistVinProfile = action({
     ollamaEndpoint: v.optional(v.string()),
   },
   returns: vinQuoteResponseValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+
     const normalizedVin = normalizeVin(args.vin);
-
-    const profile = await ctx.runAction(api.vin.decodeVin.decodeVin, {
-      vin: normalizedVin,
-    });
-
+    const profile = await decodeVinProfile(normalizedVin);
     const signals = computeVinSignals(profile, args.overrides);
 
     const ollamaEndpoint = args.ollamaEndpoint ?? "http://127.0.0.1:11434";
@@ -83,17 +85,14 @@ export const decodeAndPersistVinProfile = action({
       throw new Error("Ollama embeddings response did not include a vector.");
     }
 
-    const profileId = await ctx.runMutation(
-      api.vin.persistVinProfile.persistDecodedVinProfile,
-      {
-        tenantId: args.tenantId,
-        vehicleId: args.vehicleId,
-        vin: normalizedVin,
-        profile,
-        signals,
-        embedding: embeddingPayload.embedding,
-      },
-    );
+    const profileId = await ctx.runMutation("vin/persistVinProfile:persistDecodedVinProfile", {
+      tenantId: args.tenantId,
+      vehicleId: args.vehicleId,
+      vin: normalizedVin,
+      profile,
+      signals,
+      embedding: embeddingPayload.embedding,
+    });
 
     return {
       vin: normalizedVin,

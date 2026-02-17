@@ -7,5 +7,7 @@ import { decodeVinProfile } from "./decodeClient";
 export const decodeVin = action({
   args: { vin: v.string() },
   returns: vinDecodedProfileValidator,
-  handler: async (_ctx, args) => decodeVinProfile(args.vin),
+  handler: async (_ctx: any, args: any) => {
+    return await decodeVinProfile(args.vin);
+  },
 });
