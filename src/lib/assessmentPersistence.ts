@@ -5,6 +5,7 @@ import { ConvexHttpClient } from "convex/browser";
 export type PersistedAssessmentRun = {
   runId: string;
   inspectionId: string;
+  correlationId?: string;
   tenantSlug: string;
   vin: string;
   model: string;
@@ -56,6 +57,7 @@ function getClient(): ConvexHttpClient | null {
 function fromConvexRun(run: {
   runId: string;
   inspectionId: string;
+  correlationId?: string;
   tenantSlug: string;
   vin: string;
   model: string;
@@ -79,6 +81,7 @@ function fromConvexRun(run: {
   return {
     runId: run.runId,
     inspectionId: run.inspectionId,
+    ...(run.correlationId ? { correlationId: run.correlationId } : {}),
     tenantSlug: run.tenantSlug,
     vin: run.vin,
     model: run.model,
@@ -110,6 +113,7 @@ async function migrateLegacyRun(run: PersistedAssessmentRun): Promise<void> {
   await (client as any).mutation("assessmentRuns:createAssessmentRun", {
     runId: run.runId,
     inspectionId: run.inspectionId,
+    ...(run.correlationId ? { correlationId: run.correlationId } : {}),
     tenantSlug: run.tenantSlug,
     vin: run.vin,
     model: run.model,
@@ -150,6 +154,7 @@ export async function createAssessmentRun(input: CreateAssessmentRunInput): Prom
   const saved = await (client as any).mutation("assessmentRuns:createAssessmentRun", {
     runId: run.runId,
     inspectionId: run.inspectionId,
+    ...(run.correlationId ? { correlationId: run.correlationId } : {}),
     tenantSlug: run.tenantSlug,
     vin: run.vin,
     model: run.model,
