@@ -226,6 +226,30 @@ export default defineSchema({
       filterFields: ["tenantId"],
     }),
 
+  pricingCoefficients: defineTable({
+    ...tenantScopedFields,
+    category: v.union(
+      v.literal("VSF"),
+      v.literal("CF"),
+      v.literal("CAF"),
+      v.literal("LLF"),
+      v.literal("MRF"),
+      v.literal("RRF"),
+      v.literal("Upsell"),
+      v.literal("Discount"),
+    ),
+    key: v.string(),
+    multiplier: v.optional(v.number()),
+    value: v.optional(v.number()),
+    effectiveFrom: v.number(),
+    effectiveTo: v.optional(v.number()),
+    version: v.number(),
+    isActive: v.boolean(),
+  })
+    .index("by_tenant_category_key", ["tenantId", "category", "key"])
+    .index("by_tenant_version", ["tenantId", "version"])
+    .index("by_tenant_active_effective_from", ["tenantId", "isActive", "effectiveFrom"]),
+
   pricingCalculations: defineTable({
     ...tenantScopedFields,
     quoteId: v.optional(v.id("quotes")),
@@ -309,6 +333,11 @@ export default defineSchema({
   quoteSnapshots: defineTable({
     tenantId: v.id("tenants"),
     quoteId: v.id("quotes"),
+    pricingRuleVersion: v.optional(v.number()),
+    coefficientSnapshot: v.any(),
+    rawAiOutput: v.optional(v.any()),
+    vinSignals: v.optional(v.any()),
+    calculationTrace: v.optional(v.any()),
     snapshotEvent: v.union(v.literal("quote_created"), v.literal("quote_revised"), v.literal("quote_finalized")),
     pricingInputPayload: v.any(),
     normalizedContext: v.any(),
@@ -319,8 +348,10 @@ export default defineSchema({
     actorId: v.optional(v.id("users")),
     actorSource: v.string(),
   })
+    .index("by_tenant_quote", ["tenantId", "quoteId"])
     .index("by_tenant_quote_snapshot_at", ["tenantId", "quoteId", "snapshotAt"])
-    .index("by_tenant_snapshot_event", ["tenantId", "snapshotEvent", "snapshotAt"]),
+    .index("by_tenant_snapshot_event", ["tenantId", "snapshotEvent", "snapshotAt"])
+    .index("by_tenant_pricing_rule_version", ["tenantId", "pricingRuleVersion", "snapshotAt"]),
 
   quoteTransitionEvents: defineTable({
     tenantId: v.id("tenants"),
@@ -453,6 +484,8 @@ export default defineSchema({
     .index("by_quote_version", ["quoteId", "quoteVersion"])
     .index("by_correlation_id", ["correlationId"])
     .index("by_tenant_quote_version", ["tenantId", "quoteId", "quoteVersion"]),
+
+  aiInspectionSubmissions: defineTable({
     ...tenantScopedFields,
     quoteId: v.string(),
     imageUrls: v.array(v.string()),
