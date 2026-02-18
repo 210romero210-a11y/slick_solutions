@@ -60,8 +60,8 @@ export const vinSignalValidator = v.object({
 });
 
 export const vinQuoteRequestValidator = v.object({
-  tenantId: v.string(),
-  vehicleId: v.string(),
+  tenantId: v.id("tenants"),
+  vehicleId: v.id("vehicles"),
   vin: v.string(),
   overrides: v.optional(vinSignalOverridesValidator),
   ollamaModel: v.optional(v.string()),
@@ -72,6 +72,6 @@ export const vinQuoteResponseValidator = v.object({
   vin: v.string(),
   profile: vinDecodedProfileValidator,
   signals: vinSignalValidator,
-  profileId: v.string(),
+  profileId: v.id("vinProfiles"),
   embeddingVectorLength: v.number(),
 });
