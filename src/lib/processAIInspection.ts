@@ -5,7 +5,11 @@ import { runVisionAssessment } from "./aiRuntime";
 import { createAssessmentRun } from "./assessmentPersistence";
 import { normalizeSignals, type NormalizedAISignals, type RawAISignals } from "./aiSignalNormalization";
 import { validateSignalsForVehicle } from "./aiSignalValidation";
-import { enrichVehicleFromVin } from "./vinEnrichment";
+import {
+  UNKNOWN_VIN_PRICING_SIGNALS,
+  type VinPricingSignalModel,
+} from "../../convex/vin/pricingSignals";
+import { enrichVehicleSignalsFromVin } from "./vinEnrichment";
 
 const severityToScore = (severity: VisionAssessmentResult["severity"]): number => {
   switch (severity) {
@@ -23,6 +27,31 @@ const severityToScore = (severity: VisionAssessmentResult["severity"]): number =
     }
   }
 };
+
+const pricingSignalsFromVehicleAttributes = (vehicle: VehicleAttributes): VinPricingSignalModel => ({
+  ...UNKNOWN_VIN_PRICING_SIGNALS,
+  bodyClassBucket:
+    vehicle.normalizedVehicleClass === "truck"
+      ? "truck"
+      : vehicle.normalizedVehicleClass === "suv"
+        ? "suv_cuv"
+        : vehicle.normalizedVehicleClass === "van"
+          ? "van"
+          : vehicle.normalizedVehicleClass === "coupe"
+            ? "coupe_convertible"
+            : vehicle.normalizedVehicleClass === "sedan"
+              ? "sedan_hatch_wagon"
+              : "unknown",
+  gvwrBucket:
+    vehicle.normalizedVehicleSize === "heavy_duty"
+      ? "heavy"
+      : vehicle.normalizedVehicleSize === "fullsize"
+        ? "medium"
+        : vehicle.normalizedVehicleSize === "midsize" || vehicle.normalizedVehicleSize === "compact"
+          ? "light"
+          : "unknown",
+  ageYears: vehicle.decodedModelYear != null ? Math.max(0, new Date().getFullYear() - vehicle.decodedModelYear) : null,
+});
 
 function mapToRawSignals(result: VisionAssessmentResult, photoCount: number): RawAISignals {
   const severityScore = severityToScore(result.severity);
@@ -67,7 +96,14 @@ export async function processAIInspection(
     runVisionInference?: (payload: VisionAgentInput) => Promise<VisionAssessmentResult>;
   } = {},
 ): Promise<ProcessAIInspectionOutput> {
-  const vehicleAttributes = input.vehicleAttributes ?? (await enrichVehicleFromVin(input.vin));
+  const enrichment = input.vehicleAttributes
+    ? {
+        vehicleAttributes: input.vehicleAttributes,
+        pricingSignals: pricingSignalsFromVehicleAttributes(input.vehicleAttributes),
+      }
+    : await enrichVehicleSignalsFromVin(input.vin);
+
+  const { vehicleAttributes, pricingSignals } = enrichment;
 
   const invokeVision = deps.runVisionInference ?? runVisionAssessment;
   const aiResult = await invokeVision({
@@ -79,7 +115,7 @@ export async function processAIInspection(
 
   const preNormalizationPayload = mapToRawSignals(aiResult, input.photoUrls.length);
   const normalizedSignals = normalizeSignals(preNormalizationPayload);
-  const validation = validateSignalsForVehicle(normalizedSignals, vehicleAttributes);
+  const validation = validateSignalsForVehicle(normalizedSignals, pricingSignals);
 
   const needsManualReview = validation.wasAdjusted || aiResult.confidence < 0.5;
 
