@@ -76,8 +76,9 @@ export async function runAssessment(input: CustomerIntake): Promise<AssessmentRu
   };
 
   const orchestrated = orchestrateInspection(initializedRecord);
-  const aiResult = await runVisionAssessment({
+  const processedAI = await processAIInspection({
     tenantSlug: input.tenantSlug,
+    inspectionId: input.inspectionId,
     vin: input.vin,
     photoUrls: input.photoUrls,
     ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
