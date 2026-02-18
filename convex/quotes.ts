@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { QUOTE_STATUS } from "./model/constants";
 import { requireAuthenticatedIdentity } from "./model/auth";
+import { requireTenantAccess } from "./model/tenantGuards";
 
 const quoteStatusValidator = v.union(...QUOTE_STATUS.map((status) => v.literal(status)));
 async function appendQuoteSnapshot(ctx: any, args: {
@@ -268,16 +269,16 @@ export const explainQuotePrice = query({
     quoteId: v.id("quotes"),
   },
   handler: async (ctx: any, args: any) => {
-    await requireAuthenticatedIdentity(ctx);
+    const tenantId = await requireTenantAccess(ctx, args.tenantId);
 
     const quote = await ctx.db.get(args.quoteId);
-    if (!quote || quote.tenantId !== args.tenantId) {
+    if (!quote || quote.tenantId !== tenantId) {
       throw new Error("Quote not found for tenant");
     }
 
     const snapshots = await ctx.db
       .query("quoteSnapshots")
-      .withIndex("by_tenant_quote_snapshot_at", (q: any) => q.eq("tenantId", args.tenantId).eq("quoteId", args.quoteId))
+      .withIndex("by_tenant_quote_snapshot_at", (q: any) => q.eq("tenantId", tenantId).eq("quoteId", args.quoteId))
       .collect();
 
     const latestSnapshot = snapshots.at(-1);
@@ -288,26 +289,36 @@ export const explainQuotePrice = query({
       };
     }
 
+    const coefficientBreakdown = Object.entries((latestSnapshot.coefficientSnapshot ?? {}) as Record<string, unknown>).map(
+      ([coefficientKey, coefficientValue]) => ({
+        coefficientKey,
+        coefficientValue,
+      }),
+    );
+
+    const explanationTrace = [
+      `Quote ${quote.quoteNumber} is currently ${quote.totalCents} ${quote.currency.toUpperCase()} cents inclusive of tax.`,
+      `Snapshot event: ${latestSnapshot.snapshotEvent} at ${new Date(latestSnapshot.snapshotAt).toISOString()}.`,
+      ...(Array.isArray(latestSnapshot.calculationTrace)
+        ? latestSnapshot.calculationTrace.map((step: unknown, index: number) => `Step ${index + 1}: ${JSON.stringify(step)}`)
+        : ["No structured calculation trace was captured in this snapshot."]),
+    ];
+
     return {
       quoteId: args.quoteId,
-      currentTotals: {
+      currentQuoteTotal: {
         subtotalCents: quote.subtotalCents,
         taxCents: quote.taxCents,
         totalCents: quote.totalCents,
         currency: quote.currency,
       },
+      coefficientBreakdown,
+      explanationTrace,
       latestSnapshot: {
         snapshotEvent: latestSnapshot.snapshotEvent,
         snapshotAt: latestSnapshot.snapshotAt,
         actorSource: latestSnapshot.actorSource,
-        actorId: latestSnapshot.actorId,
-        pricingInputPayload: latestSnapshot.pricingInputPayload,
-        normalizedContext: latestSnapshot.normalizedContext,
-        ruleMetadata: latestSnapshot.ruleMetadata,
-        computedLineItems: latestSnapshot.computedLineItems,
-        computedTotals: latestSnapshot.computedTotals,
       },
-      snapshotHistoryCount: snapshots.length,
     };
   },
 });
