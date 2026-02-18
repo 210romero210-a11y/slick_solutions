@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
-import { action, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
+import { requireAuthenticatedIdentity } from "./model/auth";
 
 const runRecordValidator = v.object({
   runId: v.string(),
@@ -23,29 +24,13 @@ const runRecordValidator = v.object({
 });
 
 export const createAssessmentRun = mutation({
-  args: {
-    runId: v.string(),
-    inspectionId: v.string(),
-    tenantSlug: v.string(),
-    vin: v.string(),
-    model: v.string(),
-    source: v.union(v.literal("ollama"), v.literal("heuristic_fallback")),
-    severity: v.union(v.literal("minor"), v.literal("moderate"), v.literal("major"), v.literal("critical")),
-    confidence: v.number(),
-    summary: v.string(),
-    recommendedServices: v.array(v.string()),
-    rawResponse: v.optional(v.string()),
-    needsManualReview: v.boolean(),
-    reviewStatus: v.optional(v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))),
-    reviewedBy: v.optional(v.string()),
-    reviewedAt: v.optional(v.number()),
-    reviewNotes: v.optional(v.string()),
-    createdAt: v.number(),
-  },
-  handler: async (ctx, args) => {
+  args: runRecordValidator.fields,
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+
     const existing = await ctx.db
       .query("assessmentRuns")
-      .withIndex("by_run_id", (q) => q.eq("runId", args.runId))
+      .withIndex("by_run_id", (q: any) => q.eq("runId", args.runId))
       .unique();
 
     const record = {
@@ -69,10 +54,11 @@ export const createAssessmentRun = mutation({
 
 export const getAssessmentRun = query({
   args: { runId: v.string() },
-  handler: async (ctx, args) => {
-    return ctx.db
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+    return await ctx.db
       .query("assessmentRuns")
-      .withIndex("by_run_id", (q) => q.eq("runId", args.runId))
+      .withIndex("by_run_id", (q: any) => q.eq("runId", args.runId))
       .unique();
   },
 });
@@ -85,10 +71,12 @@ export const reviewAssessmentRun = mutation({
     notes: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+
     const run = await ctx.db
       .query("assessmentRuns")
-      .withIndex("by_run_id", (q) => q.eq("runId", args.runId))
+      .withIndex("by_run_id", (q: any) => q.eq("runId", args.runId))
       .unique();
 
     if (!run) {
@@ -118,34 +106,5 @@ export const reviewAssessmentRun = mutation({
       ...run,
       ...updatedFields,
     };
-  },
-});
-
-export const getAssessmentRunAction = action({
-  args: { runId: v.string() },
-  handler: async (ctx, args) => {
-    return ctx.runQuery("assessmentRuns:getAssessmentRun", args);
-  },
-});
-
-export const reviewAssessmentRunAction = action({
-  args: {
-    runId: v.string(),
-    reviewer: v.string(),
-    status: v.union(v.literal("approved"), v.literal("rejected")),
-    notes: v.optional(v.string()),
-    reviewedAt: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return ctx.runMutation("assessmentRuns:reviewAssessmentRun", args);
-  },
-});
-
-export const createAssessmentRunAction = action({
-  args: {
-    run: runRecordValidator,
-  },
-  handler: async (ctx, args) => {
-    return ctx.runMutation("assessmentRuns:createAssessmentRun", args.run);
   },
 });

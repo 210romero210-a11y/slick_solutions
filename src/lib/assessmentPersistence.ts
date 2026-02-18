@@ -95,26 +95,24 @@ async function migrateLegacyRun(run: PersistedAssessmentRun): Promise<void> {
     return;
   }
 
-  await (client as any).action("assessmentRuns:createAssessmentRunAction", {
-    run: {
-      runId: run.runId,
-      inspectionId: run.inspectionId,
-      tenantSlug: run.tenantSlug,
-      vin: run.vin,
-      model: run.model,
-      source: run.source,
-      severity: run.severity,
-      confidence: run.confidence,
-      summary: run.summary,
-      recommendedServices: run.recommendedServices,
-      rawResponse: run.rawResponse,
-      needsManualReview: run.needsManualReview,
-      reviewStatus: run.reviewStatus,
-      reviewedBy: run.reviewedBy,
-      reviewedAt: run.reviewedAt ? Date.parse(run.reviewedAt) : undefined,
-      reviewNotes: run.reviewNotes,
-      createdAt: Date.parse(run.createdAt),
-    },
+  await (client as any).mutation("assessmentRuns:createAssessmentRun", {
+    runId: run.runId,
+    inspectionId: run.inspectionId,
+    tenantSlug: run.tenantSlug,
+    vin: run.vin,
+    model: run.model,
+    source: run.source,
+    severity: run.severity,
+    confidence: run.confidence,
+    summary: run.summary,
+    recommendedServices: run.recommendedServices,
+    rawResponse: run.rawResponse,
+    needsManualReview: run.needsManualReview,
+    reviewStatus: run.reviewStatus,
+    reviewedBy: run.reviewedBy,
+    reviewedAt: run.reviewedAt ? Date.parse(run.reviewedAt) : undefined,
+    reviewNotes: run.reviewNotes,
+    createdAt: Date.parse(run.createdAt),
   });
 }
 
@@ -133,26 +131,24 @@ export async function createAssessmentRun(input: CreateAssessmentRunInput): Prom
     return run;
   }
 
-  const saved = await (client as any).action("assessmentRuns:createAssessmentRunAction", {
-    run: {
-      runId: run.runId,
-      inspectionId: run.inspectionId,
-      tenantSlug: run.tenantSlug,
-      vin: run.vin,
-      model: run.model,
-      source: run.source,
-      severity: run.severity,
-      confidence: run.confidence,
-      summary: run.summary,
-      recommendedServices: run.recommendedServices,
-      rawResponse: run.rawResponse,
-      needsManualReview: run.needsManualReview,
-      reviewStatus: run.reviewStatus,
-      reviewedBy: run.reviewedBy,
-      reviewedAt: undefined,
-      reviewNotes: run.reviewNotes,
-      createdAt: Date.parse(run.createdAt),
-    },
+  const saved = await (client as any).mutation("assessmentRuns:createAssessmentRun", {
+    runId: run.runId,
+    inspectionId: run.inspectionId,
+    tenantSlug: run.tenantSlug,
+    vin: run.vin,
+    model: run.model,
+    source: run.source,
+    severity: run.severity,
+    confidence: run.confidence,
+    summary: run.summary,
+    recommendedServices: run.recommendedServices,
+    rawResponse: run.rawResponse,
+    needsManualReview: run.needsManualReview,
+    reviewStatus: run.reviewStatus,
+    reviewedBy: run.reviewedBy,
+    reviewedAt: undefined,
+    reviewNotes: run.reviewNotes,
+    createdAt: Date.parse(run.createdAt),
   });
 
   return fromConvexRun(saved);
@@ -162,7 +158,7 @@ export async function getAssessmentRun(runId: string): Promise<PersistedAssessme
   const client = getClient();
 
   if (client) {
-    const run = await (client as any).action("assessmentRuns:getAssessmentRunAction", { runId });
+    const run = await (client as any).query("assessmentRuns:getAssessmentRun", { runId });
     if (run) {
       return fromConvexRun(run);
     }
@@ -180,7 +176,7 @@ export async function reviewAssessmentRun(input: ReviewAssessmentRunInput): Prom
   const client = getClient();
 
   if (client) {
-    const updated = await (client as any).action("assessmentRuns:reviewAssessmentRunAction", {
+    const updated = await (client as any).mutation("assessmentRuns:reviewAssessmentRun", {
       runId: input.runId,
       reviewer: input.reviewer,
       status: input.status,

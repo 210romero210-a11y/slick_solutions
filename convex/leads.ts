@@ -1,48 +1,54 @@
 import {
   CreateLeadRequestSchema,
   CreateLeadResponseSchema,
-  type CreateLeadResponse
+  type CreateLeadResponse,
 } from "@slick/contracts";
 import { v } from "convex/values";
+
 import { action, mutation, query } from "./_generated/server";
+import { requireAuthenticatedIdentity } from "./model/auth";
 
 export const createLead = mutation({
   args: {
     tenantId: v.string(),
     email: v.string(),
     vehicleVin: v.string(),
-    consentToContact: v.boolean()
+    consentToContact: v.boolean(),
   },
-  handler: async (ctx, args): Promise<CreateLeadResponse> => {
+  handler: async (ctx: any, args: any): Promise<CreateLeadResponse> => {
+    await requireAuthenticatedIdentity(ctx);
+
     const parsed = CreateLeadRequestSchema.parse(args);
 
     const leadId = await ctx.db.insert("leads", {
       ...parsed,
-      status: "accepted"
+      status: "accepted",
     });
 
     return CreateLeadResponseSchema.parse({
       id: leadId,
-      status: "accepted"
+      status: "accepted",
     });
-  }
+  },
 });
 
 export const listLeadsForTenant = query({
   args: {
-    tenantId: v.string()
+    tenantId: v.string(),
   },
-  handler: async (ctx, args) => {
-    return ctx.db
+  handler: async (ctx: any, args: any) => {
+    await requireAuthenticatedIdentity(ctx);
+
+    return await ctx.db
       .query("leads")
-      .withIndex("by_tenant", (q) => q.eq("tenantId", String(args.tenantId)))
+      .withIndex("by_tenant", (q: any) => q.eq("tenantId", args.tenantId))
       .collect();
-  }
+  },
 });
 
 export const healthCheck = action({
   args: {},
   handler: async (): Promise<{ ok: true }> => {
     return { ok: true };
-  }
+  },
 });
