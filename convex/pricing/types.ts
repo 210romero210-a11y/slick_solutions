@@ -46,6 +46,21 @@ export interface RiskMultipliers {
   partsAvailability: number;
 }
 
+export interface PricingFactorMultipliers {
+  vsf: number;
+  cf: number;
+  caf: number;
+  llf: number;
+  mrf: number;
+  rrf: number;
+}
+
+export interface PricingFactorInputs {
+  multipliers?: Partial<PricingFactorMultipliers>;
+  upsell?: number;
+  discounts?: number;
+}
+
 export interface UpsellRecommendation {
   category: string;
   probability: number;
@@ -98,6 +113,7 @@ export interface Estimate {
   aiJustification: string;
   confidence: number;
   recommendedUpsells: UpsellRecommendation[];
+  factorExplanations: string[];
   total: number;
   usedFallback: boolean;
   artifact?: PricingArtifact;
@@ -110,6 +126,7 @@ export interface PricingContext {
   tenantRules: TenantRule[];
   laborPrediction: LaborPrediction;
   riskMultipliers: RiskMultipliers;
+  pricingFactors?: PricingFactorInputs;
 }
 
 export interface PricingEngineInput extends PricingContext {
