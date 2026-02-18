@@ -15,6 +15,10 @@ export type PersistedAssessmentRun = {
   summary: string;
   recommendedServices: string[];
   rawResponse?: string;
+  preNormalizationPayload?: Record<string, unknown>;
+  postNormalizationPayload?: Record<string, unknown>;
+  validationAdjustments?: Array<Record<string, unknown>>;
+  validationReasons?: string[];
   needsManualReview: boolean;
   reviewStatus: "pending" | "approved" | "rejected";
   reviewedBy?: string;
@@ -63,6 +67,10 @@ function fromConvexRun(run: {
   summary: string;
   recommendedServices: string[];
   rawResponse?: string;
+  preNormalizationPayload?: Record<string, unknown>;
+  postNormalizationPayload?: Record<string, unknown>;
+  validationAdjustments?: Array<Record<string, unknown>>;
+  validationReasons?: string[];
   needsManualReview: boolean;
   reviewStatus: "pending" | "approved" | "rejected";
   reviewedBy?: string;
@@ -83,6 +91,10 @@ function fromConvexRun(run: {
     summary: run.summary,
     recommendedServices: run.recommendedServices,
     ...(run.rawResponse ? { rawResponse: run.rawResponse } : {}),
+    ...(run.preNormalizationPayload ? { preNormalizationPayload: run.preNormalizationPayload } : {}),
+    ...(run.postNormalizationPayload ? { postNormalizationPayload: run.postNormalizationPayload } : {}),
+    ...(run.validationAdjustments ? { validationAdjustments: run.validationAdjustments } : {}),
+    ...(run.validationReasons ? { validationReasons: run.validationReasons } : {}),
     needsManualReview: run.needsManualReview,
     reviewStatus: run.reviewStatus,
     ...(run.reviewedBy ? { reviewedBy: run.reviewedBy } : {}),
@@ -111,6 +123,10 @@ async function migrateLegacyRun(run: PersistedAssessmentRun): Promise<void> {
     summary: run.summary,
     recommendedServices: run.recommendedServices,
     rawResponse: run.rawResponse,
+    preNormalizationPayload: run.preNormalizationPayload,
+    postNormalizationPayload: run.postNormalizationPayload,
+    validationAdjustments: run.validationAdjustments,
+    validationReasons: run.validationReasons,
     needsManualReview: run.needsManualReview,
     reviewStatus: run.reviewStatus,
     reviewedBy: run.reviewedBy,
@@ -148,6 +164,10 @@ export async function createAssessmentRun(input: CreateAssessmentRunInput): Prom
     summary: run.summary,
     recommendedServices: run.recommendedServices,
     rawResponse: run.rawResponse,
+    preNormalizationPayload: run.preNormalizationPayload,
+    postNormalizationPayload: run.postNormalizationPayload,
+    validationAdjustments: run.validationAdjustments,
+    validationReasons: run.validationReasons,
     needsManualReview: run.needsManualReview,
     reviewStatus: run.reviewStatus,
     reviewedBy: run.reviewedBy,

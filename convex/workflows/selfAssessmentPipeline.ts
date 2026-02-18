@@ -1,12 +1,15 @@
 import type {
+  AISignalPayload,
   AssessmentSubmissionRequest,
   AssessmentSubmissionResponse,
   EstimateLineItem,
   InspectionState,
   SelfAssessmentPhoto,
 } from "@slick/contracts";
+import { AISignalPayloadSchema } from "@slick/contracts";
 
 import type { VisionAgentInput, VisionAssessmentResult } from "../../src/lib/aiRuntime";
+import { runDynamicPricingEngine } from "../../src/lib/pricingEngine";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -17,23 +20,6 @@ const defaultRunVisionInference = async (input: VisionAgentInput): Promise<Visio
   return runVisionAssessment(input);
 };
 
-
-const classMultiplier = (vehicleClass: "sedan" | "suv" | "truck" | "van" | "coupe" | "unknown"): number => {
-  switch (vehicleClass) {
-    case "truck":
-      return 1.18;
-    case "van":
-      return 1.12;
-    case "suv":
-      return 1.08;
-    case "coupe":
-      return 1.04;
-    case "sedan":
-      return 1;
-    default:
-      return 1;
-  }
-};
 const sanitizeVin = (vin: string): string => vin.trim().toUpperCase();
 
 const toInspectionState = (
@@ -47,15 +33,27 @@ const toInspectionState = (
   metadata,
 });
 
-const inferSeverityScore = (photos: SelfAssessmentPhoto[], hasContamination: boolean): number => {
+const inferSignalFallback = (photos: SelfAssessmentPhoto[], hasContamination: boolean): AISignalPayload => {
   const detailShots = photos.filter((photo) => photo.kind === "detail").length;
   const panelShots = photos.filter((photo) => photo.kind !== "detail").length;
-  const contaminationBonus = hasContamination ? 12 : 0;
+  const severityScore = Math.min(100, 25 + detailShots * 14 + panelShots * 6 + (hasContamination ? 12 : 0));
 
-  return Math.min(100, 25 + detailShots * 14 + panelShots * 6 + contaminationBonus);
+  return {
+    summary: "Heuristic fallback generated from submitted photo mix and contamination declaration.",
+    severityBucket: severityScore >= 86 ? "critical" : severityScore >= 70 ? "high" : severityScore >= 50 ? "medium" : "low",
+    confidence: 0.45,
+    contaminationLevel: hasContamination ? "moderate" : "none",
+    damageClass: "mixed",
+    damageType: detailShots > 0 ? "scratch" : "unknown",
+    panelMetrics: {
+      totalPanelsObserved: panelShots,
+      affectedPanels: Math.min(panelShots, Math.max(1, detailShots + (hasContamination ? 1 : 0))),
+      detailPhotos: detailShots,
+    },
+  };
 };
 
-const severityToScore = (severity: VisionAssessmentResult["severity"]): number => {
+const severityToScore = (severity: VisionAssessmentResult["severityBucket"]): number => {
   switch (severity) {
     case "critical":
       return 90;
@@ -66,7 +64,6 @@ const severityToScore = (severity: VisionAssessmentResult["severity"]): number =
     case "low":
       return 35;
     default: {
-      // Ensure we get a compile-time error if a new severity is added
       const _exhaustiveCheck: never = severity;
       return _exhaustiveCheck;
     }
@@ -89,6 +86,7 @@ type VisionInference = {
   provider: string;
   model: string;
   fallbackUsed: boolean;
+  signal: AISignalPayload;
 };
 
 export type SelfAssessmentPipelineDeps = {
@@ -97,31 +95,30 @@ export type SelfAssessmentPipelineDeps = {
 
 const buildLineItems = (
   basePriceCents: number,
-  severityScore: number,
   requestsCeramic: boolean,
-  vehicleClassMultiplier: number,
+  contaminationLevel: AISignalPayload["contaminationLevel"],
 ): EstimateLineItem[] => {
-  const conditionMultiplier = 1 + severityScore / 250;
-  const correctionPrice = Math.round(basePriceCents * conditionMultiplier * vehicleClassMultiplier);
-
   const items: EstimateLineItem[] = [
     {
       code: "EXT_CORRECTION",
       name: "Exterior paint correction",
       quantity: 1,
-      unitPriceCents: correctionPrice,
-      totalPriceCents: correctionPrice,
-      source: "ai_dynamic",
+      unitPriceCents: basePriceCents,
+      totalPriceCents: basePriceCents,
+      source: "base",
     },
-    {
+  ];
+
+  if (contaminationLevel === "moderate" || contaminationLevel === "heavy") {
+    items.push({
       code: "INT_RECONDITION",
       name: "Interior reconditioning",
       quantity: 1,
       unitPriceCents: 24900,
       totalPriceCents: 24900,
       source: "base",
-    },
-  ];
+    });
+  }
 
   if (requestsCeramic) {
     items.push({
@@ -137,8 +134,7 @@ const buildLineItems = (
   return items;
 };
 
-const sumLineItems = (items: EstimateLineItem[]): number =>
-  items.reduce((total, item) => total + item.totalPriceCents, 0);
+const sumLineItems = (items: EstimateLineItem[]): number => items.reduce((total, item) => total + item.totalPriceCents, 0);
 
 export const runSelfAssessmentPipeline = async (
   request: AssessmentSubmissionRequest,
@@ -178,23 +174,24 @@ export const runSelfAssessmentPipeline = async (
     };
 
     const visionResult = await invokeVision(visionInput);
-
     const contaminationAdjustment = contaminationDeclared ? 8 : 0;
 
     visionInference = {
-      severityScore: Math.min(100, severityToScore(visionResult.severity) + contaminationAdjustment),
+      severityScore: Math.min(100, severityToScore(visionResult.severityBucket) + contaminationAdjustment),
       confidenceScore: visionResult.confidence,
       provider: visionResult.provider,
       model: visionResult.model,
       fallbackUsed: visionResult.fallbackUsed,
+      signal: AISignalPayloadSchema.parse(visionResult.signal),
     };
   } catch {
     visionInference = {
-      severityScore: inferSeverityScore(request.photos, contaminationDeclared),
+      severityScore: severityToScore(inferSignalFallback(request.photos, contaminationDeclared).severityBucket),
       confidenceScore: 0.45,
       provider: "heuristic",
       model: "threshold-fallback",
       fallbackUsed: true,
+      signal: inferSignalFallback(request.photos, contaminationDeclared),
     };
   }
 
@@ -207,26 +204,33 @@ export const runSelfAssessmentPipeline = async (
     }),
   );
 
-  const vehicleAttributes = request.pricing.vehicleAttributes ?? {
-    normalizedVehicleClass: "unknown",
-    normalizedVehicleSize: "unknown",
-    decodedModelYear: null,
-    decodeFallbackUsed: true,
-  };
-  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
-
   const lineItems = buildLineItems(
     request.pricing.baseExteriorServicePriceCents,
-    visionInference.severityScore,
     request.assessment.requestsCeramicCoating,
-    appliedVehicleClassMultiplier,
+    visionInference.signal.contaminationLevel,
   );
-  const subtotalCents = sumLineItems(lineItems);
-  const taxCents = Math.round(subtotalCents * request.pricing.taxRate);
+
+  const subtotalInput = sumLineItems(lineItems);
+  const pricing = runDynamicPricingEngine({
+    baseServicePriceCents: subtotalInput,
+    difficultyScore: visionInference.severityScore,
+    vehicleSizeMultiplier: 1,
+    demandMultiplier: 1,
+    addOnsCents: 0,
+    discountCents: 0,
+    vehicleAttributes: request.pricing.vehicleAttributes,
+  });
+
+  const taxCents = Math.round(pricing.totalCents * request.pricing.taxRate);
 
   timeline.push(
-    toInspectionState("agent_cost_estimate", "agent", { severityScore: visionInference.severityScore, vehicleClass: vehicleAttributes.normalizedVehicleClass, vehicleClassMultiplier: appliedVehicleClassMultiplier, decodeFallbackUsed: vehicleAttributes.decodeFallbackUsed }),
-    toInspectionState("quote_ready", "system", { subtotalCents, taxCents }),
+    toInspectionState("agent_cost_estimate", "agent", {
+      severityScore: visionInference.severityScore,
+      severityBucket: visionInference.signal.severityBucket,
+      contaminationLevel: visionInference.signal.contaminationLevel,
+      pricingEngineRecomputed: true,
+    }),
+    toInspectionState("quote_ready", "system", { subtotalCents: pricing.totalCents, taxCents }),
     toInspectionState("quote_delivered", "system", { delivery: "web" }),
   );
 
@@ -235,14 +239,14 @@ export const runSelfAssessmentPipeline = async (
     status: "estimate_generated",
     message: "Self-assessment completed and estimate generated.",
     estimate: {
-      subtotalCents,
+      subtotalCents: pricing.totalCents,
       taxCents,
-      totalCents: subtotalCents + taxCents,
+      totalCents: pricing.totalCents + taxCents,
       currency: request.pricing.currency,
       lineItems,
       confidence: confidenceLabelFromScore(visionInference.confidenceScore),
-      appliedVehicleClassMultiplier,
-      vehicleAttributes,
+      appliedVehicleClassMultiplier: pricing.appliedVehicleClassMultiplier,
+      vehicleAttributes: pricing.vehicleAttributes,
     },
     timeline,
   };

@@ -1,3 +1,5 @@
+import type { AISignalPayload } from "@slick/contracts";
+
 export type InspectionState =
   | "portal_started"
   | "contact_captured"
@@ -38,6 +40,7 @@ export type InspectionRecord = {
   damageSummary?: string;
   difficultyScore?: number;
   quoteCents?: number;
+  aiSignal?: AISignalPayload;
   timeline: InspectionEvent[];
 };
 

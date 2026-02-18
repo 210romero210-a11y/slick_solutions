@@ -41,6 +41,22 @@ export const SelfAssessmentPhotoSchema = z.object({
   storageId: z.string().min(1).optional(),
 });
 
+export const AISignalPayloadSchema = z
+  .object({
+    summary: z.string().min(1),
+    severityBucket: z.enum(["low", "medium", "high", "critical"]),
+    confidence: z.number().min(0).max(1),
+    contaminationLevel: z.enum(["none", "light", "moderate", "heavy"]),
+    damageClass: z.enum(["cosmetic", "interior", "mixed", "unknown"]),
+    damageType: z.enum(["scratch", "swirl", "oxidation", "stain", "debris", "unknown"]),
+    panelMetrics: z.object({
+      totalPanelsObserved: z.number().int().min(0),
+      affectedPanels: z.number().int().min(0),
+      detailPhotos: z.number().int().min(0),
+    }),
+  })
+  .strict();
+
 export const AssessmentSubmissionRequestSchema = z.object({
   requestId: z.string().min(1),
   tenantSlug: z.string().min(1),
@@ -120,6 +136,7 @@ export type DecodeVinRequest = z.infer<typeof DecodeVinRequestSchema>;
 export type DecodeVinResponse = z.infer<typeof DecodeVinResponseSchema>;
 export type VehicleAttributes = z.infer<typeof VehicleAttributesSchema>;
 export type SelfAssessmentPhoto = z.infer<typeof SelfAssessmentPhotoSchema>;
+export type AISignalPayload = z.infer<typeof AISignalPayloadSchema>;
 export type AssessmentSubmissionRequest = z.infer<typeof AssessmentSubmissionRequestSchema>;
 export type EstimateLineItem = z.infer<typeof EstimateLineItemSchema>;
 export type InspectionState = z.infer<typeof InspectionStateSchema>;
