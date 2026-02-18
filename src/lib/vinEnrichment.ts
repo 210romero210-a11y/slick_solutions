@@ -1,6 +1,11 @@
 import type { VehicleAttributes } from "@slick/contracts";
 
 import { decodeVinProfile } from "../../convex/vin/decodeClient";
+import {
+  mapVinDecodedProfileToPricingSignals,
+  UNKNOWN_VIN_PRICING_SIGNALS,
+  type VinPricingSignalModel,
+} from "../../convex/vin/pricingSignals";
 
 const unknownAttributes = (): VehicleAttributes => ({
   normalizedVehicleClass: "unknown",
@@ -9,32 +14,29 @@ const unknownAttributes = (): VehicleAttributes => ({
   decodeFallbackUsed: true,
 });
 
-const classifyVehicleClass = (bodyClass: string, vehicleType: string): VehicleAttributes["normalizedVehicleClass"] => {
-  const candidate = `${bodyClass} ${vehicleType}`.toLowerCase();
-  if (candidate.includes("truck") || candidate.includes("pickup")) return "truck";
-  if (candidate.includes("sport utility") || candidate.includes("suv") || candidate.includes("crossover")) return "suv";
-  if (candidate.includes("van") || candidate.includes("minivan")) return "van";
-  if (candidate.includes("coupe") || candidate.includes("convertible")) return "coupe";
-  if (candidate.includes("sedan") || candidate.includes("hatchback") || candidate.includes("wagon")) return "sedan";
-  return "unknown";
+const classifyVehicleClass = (signals: VinPricingSignalModel): VehicleAttributes["normalizedVehicleClass"] => {
+  switch (signals.bodyClassBucket) {
+    case "truck":
+      return "truck";
+    case "suv_cuv":
+      return "suv";
+    case "van":
+      return "van";
+    case "coupe_convertible":
+      return "coupe";
+    case "sedan_hatch_wagon":
+      return "sedan";
+    default:
+      return "unknown";
+  }
 };
 
-const classifyVehicleSize = (bodyClass: string, gvwr: string): VehicleAttributes["normalizedVehicleSize"] => {
-  const body = bodyClass.toLowerCase();
-  const gvwrMatch = gvwr.match(/\d{4,5}/);
-  const gvwrValue = gvwrMatch ? Number(gvwrMatch[0]) : null;
-
-  if (gvwrValue !== null) {
-    if (gvwrValue >= 10_000) return "heavy_duty";
-    if (gvwrValue >= 6_000) return "fullsize";
-    if (gvwrValue >= 4_000) return "midsize";
-    return "compact";
+const classifyVehicleSize = (signals: VinPricingSignalModel): VehicleAttributes["normalizedVehicleSize"] => {
+  if (signals.gvwrBucket === "heavy") return "heavy_duty";
+  if (signals.gvwrBucket === "medium") return "fullsize";
+  if (signals.gvwrBucket === "light") {
+    return signals.bodyClassBucket === "truck" || signals.bodyClassBucket === "suv_cuv" ? "midsize" : "compact";
   }
-
-  if (body.includes("heavy")) return "heavy_duty";
-  if (body.includes("large") || body.includes("full-size") || body.includes("full size")) return "fullsize";
-  if (body.includes("midsize") || body.includes("mid-size") || body.includes("mid size")) return "midsize";
-  if (body.includes("compact") || body.includes("subcompact")) return "compact";
   return "unknown";
 };
 
@@ -47,21 +49,35 @@ const parseModelYear = (value: string): number | null => {
 };
 
 export async function enrichVehicleFromVin(vin: string): Promise<VehicleAttributes> {
+  const enriched = await enrichVehicleSignalsFromVin(vin);
+  return enriched.vehicleAttributes;
+}
+
+export async function enrichVehicleSignalsFromVin(
+  vin: string,
+): Promise<{ vehicleAttributes: VehicleAttributes; pricingSignals: VinPricingSignalModel }> {
   try {
     const decoded = await decodeVinProfile(vin);
+    const pricingSignals = mapVinDecodedProfileToPricingSignals(decoded);
 
     return {
-      normalizedVehicleClass: classifyVehicleClass(decoded.bodyClass, decoded.vehicleType),
-      normalizedVehicleSize: classifyVehicleSize(decoded.bodyClass, decoded.gvwr),
-      decodedModelYear: parseModelYear(decoded.modelYear),
-      decodeFallbackUsed: false,
+      vehicleAttributes: {
+        normalizedVehicleClass: classifyVehicleClass(pricingSignals),
+        normalizedVehicleSize: classifyVehicleSize(pricingSignals),
+        decodedModelYear: parseModelYear(decoded.modelYear),
+        decodeFallbackUsed: false,
+      },
+      pricingSignals,
     };
   } catch (error) {
     console.warn("vin_decode_failed", {
       vinSuffix: vin.slice(-6),
       message: error instanceof Error ? error.message : "unknown_error",
     });
-    return unknownAttributes();
+    return {
+      vehicleAttributes: unknownAttributes(),
+      pricingSignals: UNKNOWN_VIN_PRICING_SIGNALS,
+    };
   }
 }
 

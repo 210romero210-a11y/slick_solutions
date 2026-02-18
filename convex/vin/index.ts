@@ -5,3 +5,4 @@ export * from "./normalize";
 export * from "./persistVinProfile";
 export * from "./rules";
 export * from "./types";
+export * from "./pricingSignals";

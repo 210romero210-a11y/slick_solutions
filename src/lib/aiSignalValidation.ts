@@ -1,4 +1,5 @@
 import type { VehicleAttributes } from "@slick/contracts";
+import type { VinPricingSignalModel } from "../../convex/vin/pricingSignals";
 
 import type { NormalizedAISignals } from "./aiSignalNormalization";
 
@@ -41,7 +42,7 @@ const clamp = (value: number, min: number, max: number): number => Math.max(min,
 
 export function validateSignalsForVehicle(
   normalized: NormalizedAISignals,
-  vehicle: VehicleAttributes,
+  vehicle: VehicleAttributes | VinPricingSignalModel,
 ): AISignalValidationResult {
   const corrections: ValidationCorrection[] = [];
   const reasons: string[] = [];
@@ -51,26 +52,41 @@ export function validateSignalsForVehicle(
     severityBuckets: { ...normalized.severityBuckets },
   };
 
-  const panelRange = classPanelRange[vehicle.normalizedVehicleClass];
+  const vehicleClass =
+    "normalizedVehicleClass" in vehicle
+      ? vehicle.normalizedVehicleClass
+      : vehicle.bodyClassBucket === "truck"
+        ? "truck"
+        : vehicle.bodyClassBucket === "suv_cuv"
+          ? "suv"
+          : vehicle.bodyClassBucket === "van"
+            ? "van"
+            : vehicle.bodyClassBucket === "coupe_convertible"
+              ? "coupe"
+              : vehicle.bodyClassBucket === "sedan_hatch_wagon"
+                ? "sedan"
+                : "unknown";
+
+  const panelRange = classPanelRange[vehicleClass];
   const correctedPanelCount = clamp(corrected.panelCount, panelRange.min, panelRange.max);
   if (correctedPanelCount !== corrected.panelCount) {
     corrections.push({
       field: "panelCount",
       from: corrected.panelCount,
       to: correctedPanelCount,
-      reason: `panelCount out of expected range for vehicle class ${vehicle.normalizedVehicleClass}`,
+      reason: `panelCount out of expected range for vehicle class ${vehicleClass}`,
     });
-    reasons.push(`Adjusted panelCount for vehicle class ${vehicle.normalizedVehicleClass}.`);
+    reasons.push(`Adjusted panelCount for vehicle class ${vehicleClass}.`);
     corrected.panelCount = correctedPanelCount;
   }
 
-  const maxPaintScore = maxPaintByClass[vehicle.normalizedVehicleClass];
+  const maxPaintScore = maxPaintByClass[vehicleClass];
   if (corrected.paintConditionScore > maxPaintScore) {
     corrections.push({
       field: "paintConditionScore",
       from: corrected.paintConditionScore,
       to: maxPaintScore,
-      reason: `paintConditionScore exceeds class compatibility for ${vehicle.normalizedVehicleClass}`,
+      reason: `paintConditionScore exceeds class compatibility for ${vehicleClass}`,
     });
     reasons.push("Adjusted paintConditionScore to remain class-compatible.");
     corrected.paintConditionScore = maxPaintScore;
