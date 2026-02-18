@@ -223,6 +223,20 @@ export default defineSchema({
       filterFields: ["tenantId"],
     }),
 
+  pricingCalculations: defineTable({
+    ...tenantScopedFields,
+    quoteId: v.optional(v.id("quotes")),
+    inspectionId: v.optional(v.id("inspections")),
+    vehicleId: v.optional(v.id("vehicles")),
+    input: v.any(),
+    output: v.any(),
+    ...auditFields,
+  })
+    .index("by_tenant_quote", ["tenantId", "quoteId"])
+    .index("by_tenant_inspection", ["tenantId", "inspectionId"])
+    .index("by_tenant_vehicle", ["tenantId", "vehicleId"])
+    .index("by_tenant_created_at", ["tenantId", "createdAt"]),
+
   upsellCatalog: defineTable({
     ...tenantScopedFields,
     sku: v.string(),

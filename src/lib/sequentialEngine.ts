@@ -105,21 +105,7 @@ export async function runAssessment(input: CustomerIntake): Promise<AssessmentRu
   };
 }
 
-function calculateConditionMultiplier(difficultyScore: number): number {
-  if (difficultyScore <= 25) {
-    return 1;
-  }
-  if (difficultyScore <= 50) {
-    return 1.12;
-  }
-  if (difficultyScore <= 75) {
-    return 1.24;
-  }
-  return 1.36;
-}
-
 export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingResponse {
-  const appliedConditionMultiplier = calculateConditionMultiplier(input.difficultyScore);
   const vehicleAttributes =
     input.vehicleAttributes ?? {
       normalizedVehicleClass: "unknown",
@@ -127,25 +113,29 @@ export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingR
       decodedModelYear: null,
       decodeFallbackUsed: true,
     };
-  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
 
-  const subtotalCents = Math.round(
-    input.baseServicePriceCents *
-      appliedConditionMultiplier *
-      appliedVehicleClassMultiplier *
-      input.vehicleSizeMultiplier *
-      input.demandMultiplier,
+  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
+  const baseSubtotalCents = input.services.reduce(
+    (acc, service) => acc + Math.round(service.basePriceCents * service.quantity),
+    0,
   );
+  const preRuleSubtotalCents = Math.round(
+    baseSubtotalCents * input.vehicleSizeMultiplier * input.demandMultiplier * appliedVehicleClassMultiplier,
+  );
+  const subtotalCents = preRuleSubtotalCents;
   const totalCents = Math.max(0, subtotalCents + input.addOnsCents - input.discountCents);
 
   return {
+    calculationId: generateId("calc"),
+    tenantId: "local",
+    baseSubtotalCents,
+    preRuleSubtotalCents,
     subtotalCents,
     totalCents,
-    appliedConditionMultiplier,
-    appliedVehicleClassMultiplier,
+    appliedRules: [],
     vehicleAttributes,
     explanation:
-      "Base price adjusted by condition severity, decoded vehicle class, vehicle size, and demand profile. Add-ons and discounts are then applied.",
+      "Local fallback pricing result (Convex unavailable): base services scaled by request multipliers before add-ons/discounts.",
   };
 }
 
