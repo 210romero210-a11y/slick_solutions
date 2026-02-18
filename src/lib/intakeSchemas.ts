@@ -1,3 +1,4 @@
+import { AISignalPayloadSchema } from "@slick/contracts";
 import { z } from "zod";
 
 const normalizedVehicleClassSchema = z.enum(["sedan", "suv", "truck", "van", "coupe", "unknown"]);
@@ -51,7 +52,7 @@ export const assessmentResponseSchema = z.object({
   timelineCount: z.number().int().positive(),
   analysisSource: z.enum(["ollama", "heuristic"]),
   confidence: z.number().min(0).max(1),
-  recommendedServices: z.array(z.string()),
+  signal: AISignalPayloadSchema,
   runId: z.string(),
 });
 

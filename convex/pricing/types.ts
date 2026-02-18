@@ -63,6 +63,33 @@ export interface EstimateLineItem {
   source: "rule" | "historical" | "ai";
 }
 
+export interface RuleEvaluationArtifact {
+  ruleId: string;
+  matched: boolean;
+  subtotalBefore: number;
+  subtotalAfter: number;
+  laborHoursBefore: number;
+  laborHoursAfter: number;
+}
+
+export interface PricingArtifact {
+  quoteVersion: number;
+  correlationId: string;
+  path: "fallback" | "ai";
+  baseSubtotal: number;
+  riskMultipliers: RiskMultipliers;
+  riskFactor: number;
+  subtotalAfterRisk: number;
+  subtotalAfterRules: number;
+  laborHoursInput: number;
+  laborHoursAfterRules: number;
+  laborRate: number;
+  laborLineTotal: number;
+  matchedRuleIds: string[];
+  ruleEvaluations: RuleEvaluationArtifact[];
+  computedIntermediates: Record<string, number>;
+}
+
 export interface Estimate {
   estimateId: string;
   vin: string;
@@ -73,6 +100,7 @@ export interface Estimate {
   recommendedUpsells: UpsellRecommendation[];
   total: number;
   usedFallback: boolean;
+  artifact?: PricingArtifact;
 }
 
 export interface PricingContext {
@@ -86,6 +114,8 @@ export interface PricingContext {
 
 export interface PricingEngineInput extends PricingContext {
   aiAvailable: boolean;
+  quoteVersion?: number;
+  correlationId?: string;
 }
 
 export interface AiPricingResult {

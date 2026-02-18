@@ -6,6 +6,7 @@ import { requireAuthenticatedIdentity } from "./model/auth";
 const runRecordValidator = v.object({
   runId: v.string(),
   inspectionId: v.string(),
+  correlationId: v.optional(v.string()),
   tenantSlug: v.string(),
   vin: v.string(),
   model: v.string(),
@@ -15,6 +16,10 @@ const runRecordValidator = v.object({
   summary: v.string(),
   recommendedServices: v.array(v.string()),
   rawResponse: v.optional(v.string()),
+  preNormalizationPayload: v.optional(v.any()),
+  postNormalizationPayload: v.optional(v.any()),
+  validationAdjustments: v.optional(v.array(v.any())),
+  validationReasons: v.optional(v.array(v.string())),
   needsManualReview: v.boolean(),
   reviewStatus: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
   reviewedBy: v.optional(v.string()),

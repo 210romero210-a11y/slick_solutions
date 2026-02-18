@@ -155,6 +155,8 @@ export default defineSchema({
     customerProfileId: v.id("customerProfiles"),
     vehicleId: v.id("vehicles"),
     inspectionId: v.optional(v.id("inspections")),
+    correlationId: v.optional(v.string()),
+    quoteVersion: v.number(),
     quoteNumber: v.string(),
     status: v.union(...QUOTE_STATUS.map((status) => v.literal(status))),
     subtotalCents: v.number(),
@@ -304,7 +306,7 @@ export default defineSchema({
 
   quoteTransitionEvents: defineTable({
     tenantId: v.id("tenants"),
-    quoteId: v.id("quotes"),
+    quoteId: v.string(),
     fromStatus: v.optional(v.union(...QUOTE_STATUS.map((status) => v.literal(status)))),
     toStatus: v.union(...QUOTE_STATUS.map((status) => v.literal(status))),
     reason: v.optional(v.string()),
@@ -331,6 +333,7 @@ export default defineSchema({
   assessmentRuns: defineTable({
     runId: v.string(),
     inspectionId: v.string(),
+    correlationId: v.optional(v.string()),
     tenantSlug: v.string(),
     vin: v.string(),
     model: v.string(),
@@ -340,6 +343,10 @@ export default defineSchema({
     summary: v.string(),
     recommendedServices: v.array(v.string()),
     rawResponse: v.optional(v.string()),
+    preNormalizationPayload: v.optional(v.any()),
+    postNormalizationPayload: v.optional(v.any()),
+    validationAdjustments: v.optional(v.array(v.any())),
+    validationReasons: v.optional(v.array(v.string())),
     needsManualReview: v.boolean(),
     reviewStatus: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
     reviewedBy: v.optional(v.string()),
@@ -366,4 +373,87 @@ export default defineSchema({
     .index("by_tenant_slug", ["tenantSlug"])
     .index("by_tenant_review_status", ["tenantSlug", "reviewStatus"])
     .index("by_tenant_reviewed_at", ["tenantSlug", "reviewedAt"]),
+
+  aiSubmissions: defineTable({
+    runId: v.string(),
+    tenantSlug: v.string(),
+    inspectionId: v.string(),
+    quoteId: v.optional(v.id("quotes")),
+    correlationId: v.string(),
+    source: v.string(),
+    requestPayload: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_run_id", ["runId"])
+    .index("by_correlation_id", ["correlationId"])
+    .index("by_tenant_slug", ["tenantSlug"]),
+
+  aiSignals: defineTable({
+    tenantId: v.id("tenants"),
+    quoteId: v.optional(v.id("quotes")),
+    inspectionId: v.optional(v.id("inspections")),
+    assessmentRunId: v.optional(v.string()),
+    correlationId: v.string(),
+    signalType: v.string(),
+    normalizedPayload: v.any(),
+    validationStatus: v.union(v.literal("validated"), v.literal("needs_review"), v.literal("rejected")),
+    validationNotes: v.optional(v.string()),
+    validatedAt: v.number(),
+    ...auditFields,
+  })
+    .index("by_tenant_quote", ["tenantId", "quoteId"])
+    .index("by_tenant_inspection", ["tenantId", "inspectionId"])
+    .index("by_correlation_id", ["correlationId"]),
+
+  aiSignalEvents: defineTable({
+    tenantId: v.id("tenants"),
+    aiSignalId: v.optional(v.id("aiSignals")),
+    quoteId: v.optional(v.id("quotes")),
+    inspectionId: v.optional(v.id("inspections")),
+    assessmentRunId: v.optional(v.string()),
+    correlationId: v.string(),
+    eventType: v.union(v.literal("captured"), v.literal("normalized"), v.literal("validated"), v.literal("replayed")),
+    rawPayload: v.optional(v.any()),
+    normalizedPayload: v.optional(v.any()),
+    validationNotes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_tenant_ai_signal", ["tenantId", "aiSignalId", "createdAt"])
+    .index("by_tenant_quote", ["tenantId", "quoteId", "createdAt"])
+    .index("by_correlation_id", ["correlationId", "createdAt"]),
+
+  pricingLineage: defineTable({
+    tenantId: v.id("tenants"),
+    quoteId: v.id("quotes"),
+    quoteVersion: v.number(),
+    inspectionId: v.optional(v.id("inspections")),
+    assessmentRunId: v.optional(v.string()),
+    correlationId: v.string(),
+    artifact: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_quote_version", ["quoteId", "quoteVersion"])
+    .index("by_correlation_id", ["correlationId"])
+    .index("by_tenant_quote_version", ["tenantId", "quoteId", "quoteVersion"]),
+    ...tenantScopedFields,
+    quoteId: v.string(),
+    imageUrls: v.array(v.string()),
+    vin: v.string(),
+    notes: v.optional(v.string()),
+    idempotencyKey: v.string(),
+    status: v.union(v.literal("PENDING"), v.literal("PROCESSING"), v.literal("COMPLETE"), v.literal("FAILED")),
+    aiRunId: v.optional(v.id("agentRuns")),
+    providerRunId: v.optional(v.string()),
+    rawAiPayload: v.optional(v.any()),
+    normalizedSignals: v.optional(v.any()),
+    processingStartedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    errorMetadata: v.optional(v.any()),
+  })
+    .index("by_tenant_quote", ["tenantId", "quoteId"])
+    .index("by_tenant_status", ["tenantId", "status"])
+    .index("by_tenant_idempotency_key", ["tenantId", "idempotencyKey"]),
 });
