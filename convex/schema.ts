@@ -213,6 +213,7 @@ export default defineSchema({
     action: v.any(),
     priority: v.number(),
     isActive: v.boolean(),
+    ruleVersion: v.optional(v.number()),
   })
     .index("by_tenant_code", ["tenantId", "code"])
     .index("by_tenant_priority", ["tenantId", "priority"])
@@ -287,6 +288,23 @@ export default defineSchema({
     .index("by_tenant_model", ["tenantId", "model"])
     .index("by_tenant_run", ["tenantId", "runId"])
     .index("by_tenant_created_at", ["tenantId", "createdAt"]),
+
+
+  quoteSnapshots: defineTable({
+    tenantId: v.id("tenants"),
+    quoteId: v.id("quotes"),
+    snapshotEvent: v.union(v.literal("quote_created"), v.literal("quote_revised"), v.literal("quote_finalized")),
+    pricingInputPayload: v.any(),
+    normalizedContext: v.any(),
+    ruleMetadata: v.any(),
+    computedLineItems: v.array(v.any()),
+    computedTotals: v.any(),
+    snapshotAt: v.number(),
+    actorId: v.optional(v.id("users")),
+    actorSource: v.string(),
+  })
+    .index("by_tenant_quote_snapshot_at", ["tenantId", "quoteId", "snapshotAt"])
+    .index("by_tenant_snapshot_event", ["tenantId", "snapshotEvent", "snapshotAt"]),
 
   quoteTransitionEvents: defineTable({
     tenantId: v.id("tenants"),
