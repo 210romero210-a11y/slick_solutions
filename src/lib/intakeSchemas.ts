@@ -72,21 +72,49 @@ export const assessmentReviewResponseSchema = z.object({
 });
 
 export const dynamicPricingRequestSchema = z.object({
+  tenantSlug: z.string().min(2),
+  quoteId: z.string().min(3).optional(),
+  inspectionId: z.string().min(3).optional(),
+  vehicleId: z.string().min(3).optional(),
   vin: z.string().length(17).optional(),
-  baseServicePriceCents: z.number().int().positive(),
+  services: z
+    .array(
+      z.object({
+        code: z.string().min(1),
+        description: z.string().min(1).optional(),
+        basePriceCents: z.number().int().nonnegative(),
+        quantity: z.number().positive(),
+      }),
+    )
+    .min(1),
   difficultyScore: z.number().min(0).max(100),
-  vehicleSizeMultiplier: z.number().min(0.8).max(2),
-  demandMultiplier: z.number().min(0.8).max(2),
+  vehicleSizeMultiplier: z.number().min(0.8).max(2).default(1),
+  demandMultiplier: z.number().min(0.8).max(2).default(1),
   addOnsCents: z.number().int().nonnegative().default(0),
   discountCents: z.number().int().nonnegative().default(0),
   vehicleAttributes: vehicleAttributesSchema.optional(),
 });
 
 export const dynamicPricingResponseSchema = z.object({
+  calculationId: z.string(),
+  tenantId: z.string(),
+  quoteId: z.string().optional(),
+  inspectionId: z.string().optional(),
+  vehicleId: z.string().optional(),
+  baseSubtotalCents: z.number().int(),
+  preRuleSubtotalCents: z.number().int(),
   subtotalCents: z.number().int(),
   totalCents: z.number().int(),
-  appliedConditionMultiplier: z.number(),
-  appliedVehicleClassMultiplier: z.number().positive(),
+  appliedRules: z.array(
+    z.object({
+      ruleId: z.string(),
+      code: z.string(),
+      name: z.string(),
+      priority: z.number(),
+      subtotalBeforeCents: z.number().int(),
+      subtotalAfterCents: z.number().int(),
+    }),
+  ),
   vehicleAttributes: vehicleAttributesSchema,
   explanation: z.string(),
 });
