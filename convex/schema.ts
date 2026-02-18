@@ -71,6 +71,29 @@ export default defineSchema({
       filterFields: ["tenantId"],
     }),
 
+  leads: defineTable({
+    ...tenantScopedFields,
+    email: v.string(),
+    vehicleVin: v.string(),
+    consentToContact: v.boolean(),
+    status: v.union(v.literal("accepted"), v.literal("rejected")),
+    reason: v.optional(v.string()),
+  })
+    .index("by_tenant", ["tenantId"])
+    .index("by_tenant_vin", ["tenantId", "vehicleVin"]),
+
+  vinProfiles: defineTable({
+    ...tenantScopedFields,
+    vehicleId: v.id("vehicles"),
+    vin: v.string(),
+    profile: v.any(),
+    signals: v.any(),
+    embedding: v.array(v.number()),
+  })
+    .index("by_tenant", ["tenantId"])
+    .index("by_tenant_vehicle", ["tenantId", "vehicleId"])
+    .index("by_tenant_vin", ["tenantId", "vin"]),
+
   inspections: defineTable({
     ...tenantScopedFields,
     vehicleId: v.id("vehicles"),

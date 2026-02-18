@@ -18,14 +18,14 @@ type EmbeddingResponse = {
 
 export const persistDecodedVinProfile = mutation({
   args: {
-    tenantId: v.string(),
-    vehicleId: v.string(),
+    tenantId: v.id("tenants"),
+    vehicleId: v.id("vehicles"),
     vin: v.string(),
     profile: vinDecodedProfileValidator,
     signals: vinSignalValidator,
     embedding: v.array(v.number()),
   },
-  returns: v.string(),
+  returns: v.id("vinProfiles"),
   handler: async (ctx: any, args: any) => {
     await requireAuthenticatedIdentity(ctx);
 
@@ -39,6 +39,7 @@ export const persistDecodedVinProfile = mutation({
       embedding: args.embedding,
       createdAt: now,
       updatedAt: now,
+      isDeleted: false,
     });
 
     return id;
@@ -47,8 +48,8 @@ export const persistDecodedVinProfile = mutation({
 
 export const decodeAndPersistVinProfile = action({
   args: {
-    tenantId: v.string(),
-    vehicleId: v.string(),
+    tenantId: v.id("tenants"),
+    vehicleId: v.id("vehicles"),
     vin: v.string(),
     overrides: v.optional(vinSignalOverridesValidator),
     ollamaModel: v.optional(v.string()),

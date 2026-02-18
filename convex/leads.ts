@@ -1,5 +1,4 @@
 import {
-  CreateLeadRequestSchema,
   CreateLeadResponseSchema,
   type CreateLeadResponse,
 } from "@slick/contracts";
@@ -10,7 +9,7 @@ import { requireAuthenticatedIdentity } from "./model/auth";
 
 export const createLead = mutation({
   args: {
-    tenantId: v.string(),
+    tenantId: v.id("tenants"),
     email: v.string(),
     vehicleVin: v.string(),
     consentToContact: v.boolean(),
@@ -18,11 +17,14 @@ export const createLead = mutation({
   handler: async (ctx: any, args: any): Promise<CreateLeadResponse> => {
     await requireAuthenticatedIdentity(ctx);
 
-    const parsed = CreateLeadRequestSchema.parse(args);
+    const now = Date.now();
 
     const leadId = await ctx.db.insert("leads", {
-      ...parsed,
+      ...args,
       status: "accepted",
+      createdAt: now,
+      updatedAt: now,
+      isDeleted: false,
     });
 
     return CreateLeadResponseSchema.parse({
@@ -34,7 +36,7 @@ export const createLead = mutation({
 
 export const listLeadsForTenant = query({
   args: {
-    tenantId: v.string(),
+    tenantId: v.id("tenants"),
   },
   handler: async (ctx: any, args: any) => {
     await requireAuthenticatedIdentity(ctx);
