@@ -1,4 +1,5 @@
 import { orchestrateInspection, type InspectionRecord, type PhotoAsset } from "../../convex/workflows";
+import { AISignalPayloadSchema, type AISignalPayload } from "@slick/contracts";
 import type {
   AssessmentResponse,
   BookingRequest,
@@ -10,8 +11,8 @@ import type {
   OnboardingResponse,
 } from "./intakeSchemas";
 import { runVisionAssessment } from "./aiRuntime";
+import { runDynamicPricingEngine } from "./pricingEngine";
 import { getProviderEnvConfig } from "./providerConfig";
-import { classMultiplier } from "./vinEnrichment";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -38,7 +39,7 @@ function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
   });
 }
 
-function severityToDifficulty(severity: "low" | "medium" | "high" | "critical"): number {
+function severityToDifficulty(severity: AISignalPayload["severityBucket"]): number {
   if (severity === "low") {
     return 20;
   }
@@ -56,15 +57,11 @@ function clampDifficulty(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-function estimateQuoteFromDifficulty(difficultyScore: number): number {
-  return 53_000 + difficultyScore * 205;
-}
-
 export type AssessmentRunResult = {
   record: InspectionRecord;
   analysisSource: AssessmentResponse["analysisSource"];
   confidence: number;
-  recommendedServices: string[];
+  signal: AISignalPayload;
   runId: string;
 };
 
@@ -85,68 +82,29 @@ export async function runAssessment(input: CustomerIntake): Promise<AssessmentRu
     photoUrls: input.photoUrls,
     ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
   });
-  const aiDifficulty = severityToDifficulty(aiResult.severity);
 
+  const signal = AISignalPayloadSchema.parse(aiResult.signal);
+  const aiDifficulty = severityToDifficulty(signal.severityBucket);
   const blendedDifficulty = clampDifficulty((orchestrated.difficultyScore ?? aiDifficulty) * 0.4 + aiDifficulty * 0.6);
 
   const record: InspectionRecord = {
     ...orchestrated,
-    damageSummary: aiResult.summary,
+    damageSummary: signal.summary,
     difficultyScore: blendedDifficulty,
-    quoteCents: estimateQuoteFromDifficulty(blendedDifficulty),
+    aiSignal: signal,
   };
 
   return {
     record,
     analysisSource: aiResult.analysisSource,
     confidence: aiResult.confidence,
-    recommendedServices: aiResult.recommendedServices,
+    signal,
     runId: aiResult.runId,
   };
 }
 
-function calculateConditionMultiplier(difficultyScore: number): number {
-  if (difficultyScore <= 25) {
-    return 1;
-  }
-  if (difficultyScore <= 50) {
-    return 1.12;
-  }
-  if (difficultyScore <= 75) {
-    return 1.24;
-  }
-  return 1.36;
-}
-
 export function runDynamicPricing(input: DynamicPricingRequest): DynamicPricingResponse {
-  const appliedConditionMultiplier = calculateConditionMultiplier(input.difficultyScore);
-  const vehicleAttributes =
-    input.vehicleAttributes ?? {
-      normalizedVehicleClass: "unknown",
-      normalizedVehicleSize: "unknown",
-      decodedModelYear: null,
-      decodeFallbackUsed: true,
-    };
-  const appliedVehicleClassMultiplier = classMultiplier(vehicleAttributes.normalizedVehicleClass);
-
-  const subtotalCents = Math.round(
-    input.baseServicePriceCents *
-      appliedConditionMultiplier *
-      appliedVehicleClassMultiplier *
-      input.vehicleSizeMultiplier *
-      input.demandMultiplier,
-  );
-  const totalCents = Math.max(0, subtotalCents + input.addOnsCents - input.discountCents);
-
-  return {
-    subtotalCents,
-    totalCents,
-    appliedConditionMultiplier,
-    appliedVehicleClassMultiplier,
-    vehicleAttributes,
-    explanation:
-      "Base price adjusted by condition severity, decoded vehicle class, vehicle size, and demand profile. Add-ons and discounts are then applied.",
-  };
+  return runDynamicPricingEngine(input);
 }
 
 async function createStripePaymentIntent(input: BookingRequest, amountCents: number): Promise<{

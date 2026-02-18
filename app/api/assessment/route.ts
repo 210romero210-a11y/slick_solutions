@@ -47,6 +47,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     notes: parsed.data.concernNotes,
   });
 
+  const pricing = runDynamicPricing({
+    baseServicePriceCents: 53_000,
+    difficultyScore: result.record.difficultyScore ?? 0,
+    vehicleSizeMultiplier: 1,
+    demandMultiplier: 1,
+    addOnsCents: 0,
+    discountCents: 0,
+  });
+
   const response = assessmentResponseSchema.parse({
     inspectionId: parsed.data.inspectionId,
     status: "quote_ready",
