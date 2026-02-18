@@ -9,9 +9,9 @@ import type {
   OnboardingRequest,
   OnboardingResponse,
 } from "./intakeSchemas";
-import { runVisionAssessment } from "./aiRuntime";
 import { getProviderEnvConfig } from "./providerConfig";
 import { classMultiplier } from "./vinEnrichment";
+import { processAIInspection } from "./processAIInspection";
 
 const generateId = (prefix: string): string => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -38,19 +38,6 @@ function mapPhotoUrls(photoUrls: string[]): PhotoAsset[] {
   });
 }
 
-function severityToDifficulty(severity: "low" | "medium" | "high" | "critical"): number {
-  if (severity === "low") {
-    return 20;
-  }
-  if (severity === "medium") {
-    return 45;
-  }
-  if (severity === "high") {
-    return 70;
-  }
-
-  return 90;
-}
 
 function clampDifficulty(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -79,13 +66,15 @@ export async function runAssessment(input: CustomerIntake): Promise<AssessmentRu
   };
 
   const orchestrated = orchestrateInspection(initializedRecord);
-  const aiResult = await runVisionAssessment({
+  const processedAI = await processAIInspection({
     tenantSlug: input.tenantSlug,
+    inspectionId: input.inspectionId,
     vin: input.vin,
     photoUrls: input.photoUrls,
     ...(input.concernNotes ? { concernNotes: input.concernNotes } : {}),
   });
-  const aiDifficulty = severityToDifficulty(aiResult.severity);
+  const aiResult = processedAI.aiResult;
+  const aiDifficulty = processedAI.validatedSignals.severityScore;
 
   const blendedDifficulty = clampDifficulty((orchestrated.difficultyScore ?? aiDifficulty) * 0.4 + aiDifficulty * 0.6);
 
@@ -101,7 +90,7 @@ export async function runAssessment(input: CustomerIntake): Promise<AssessmentRu
     analysisSource: aiResult.analysisSource,
     confidence: aiResult.confidence,
     recommendedServices: aiResult.recommendedServices,
-    runId: aiResult.runId,
+    runId: processedAI.runId,
   };
 }
 
