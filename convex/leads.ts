@@ -5,22 +5,23 @@ import {
 import { v } from "convex/values";
 
 import { action, mutation, query } from "./_generated/server";
-import { requireAuthenticatedIdentity } from "./model/auth";
+import { requireTenantAccess } from "./model/tenantGuards";
 
 export const createLead = mutation({
   args: {
-    tenantId: v.id("tenants"),
+    tenantId: v.optional(v.id("tenants")),
     email: v.string(),
     vehicleVin: v.string(),
     consentToContact: v.boolean(),
   },
   handler: async (ctx: any, args: any): Promise<CreateLeadResponse> => {
-    await requireAuthenticatedIdentity(ctx);
+    const effectiveTenantId = await requireTenantAccess(ctx, args.tenantId);
 
     const now = Date.now();
 
     const leadId = await ctx.db.insert("leads", {
       ...args,
+      tenantId: effectiveTenantId,
       status: "accepted",
       createdAt: now,
       updatedAt: now,
@@ -36,14 +37,14 @@ export const createLead = mutation({
 
 export const listLeadsForTenant = query({
   args: {
-    tenantId: v.id("tenants"),
+    tenantId: v.optional(v.id("tenants")),
   },
   handler: async (ctx: any, args: any) => {
-    await requireAuthenticatedIdentity(ctx);
+    const effectiveTenantId = await requireTenantAccess(ctx, args.tenantId);
 
     return await ctx.db
       .query("leads")
-      .withIndex("by_tenant", (q: any) => q.eq("tenantId", args.tenantId))
+      .withIndex("by_tenant", (q: any) => q.eq("tenantId", effectiveTenantId))
       .collect();
   },
 });
