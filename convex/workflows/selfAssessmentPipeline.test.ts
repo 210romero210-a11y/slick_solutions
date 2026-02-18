@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { AssessmentSubmissionRequest } from "@slick/contracts";
+import type { AISignalPayload, AssessmentSubmissionRequest } from "@slick/contracts";
 
 import { runSelfAssessmentPipeline } from "./selfAssessmentPipeline.ts";
 
@@ -35,13 +35,23 @@ const buildRequest = (): AssessmentSubmissionRequest => ({
   ],
 });
 
+const mockSignal = (overrides: Partial<AISignalPayload> = {}): AISignalPayload => ({
+  summary: "Detected high paint defects",
+  severityBucket: "high",
+  confidence: 0.91,
+  contaminationLevel: "light",
+  damageClass: "cosmetic",
+  damageType: "scratch",
+  panelMetrics: { totalPanelsObserved: 5, affectedPanels: 2, detailPhotos: 1 },
+  ...overrides,
+});
+
 test("uses model inference path and reports truthful metadata", async () => {
+  const signal = mockSignal();
   const response = await runSelfAssessmentPipeline(buildRequest(), {
     runVisionInference: async () => ({
-      summary: "Detected high paint defects",
-      severity: "high",
-      confidence: 0.91,
-      recommendedServices: ["Paint correction"],
+      ...signal,
+      signal,
       provider: "ollama",
       model: "llama3.2-vision",
       fallbackUsed: false,
@@ -78,12 +88,20 @@ test("falls back when model invocation throws and marks metadata accordingly", a
 });
 
 test("uses returned confidence and fallback flag from AI runtime response", async () => {
+  const signal = mockSignal({
+    summary: "Model response invalid, used fallback",
+    severityBucket: "medium",
+    confidence: 0.6,
+    contaminationLevel: "moderate",
+    damageClass: "mixed",
+    damageType: "stain",
+    panelMetrics: { totalPanelsObserved: 5, affectedPanels: 3, detailPhotos: 1 },
+  });
+
   const response = await runSelfAssessmentPipeline(buildRequest(), {
     runVisionInference: async () => ({
-      summary: "Model response invalid, used fallback",
-      severity: "medium",
-      confidence: 0.6,
-      recommendedServices: ["Interior detail"],
+      ...signal,
+      signal,
       provider: "ollama",
       model: "llama3.2-vision",
       fallbackUsed: true,
@@ -100,8 +118,8 @@ test("uses returned confidence and fallback flag from AI runtime response", asyn
   assert.equal(triage.metadata?.fallbackUsed, true);
 });
 
-
 test("applies decoded vehicle class multiplier to estimate", async () => {
+  const signal = mockSignal();
   const response = await runSelfAssessmentPipeline(
     {
       ...buildRequest(),
@@ -117,10 +135,8 @@ test("applies decoded vehicle class multiplier to estimate", async () => {
     },
     {
       runVisionInference: async () => ({
-        summary: "Detected high paint defects",
-        severity: "high",
-        confidence: 0.91,
-        recommendedServices: ["Paint correction"],
+        ...signal,
+        signal,
         provider: "ollama",
         model: "llama3.2-vision",
         fallbackUsed: false,
