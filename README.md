@@ -23,3 +23,5 @@ This repository includes:
   - quote_delivered
 
 See `docs/implementation-sequence.md` for sequencing details.
+
+- Implementation guidance: `docs/logical-implementation-suggestions.md`
