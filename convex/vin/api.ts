@@ -60,7 +60,7 @@ export const vinSignalValidator = v.object({
 });
 
 export const vinQuoteRequestValidator = v.object({
-  tenantId: v.id("tenants"),
+  tenantId: v.optional(v.id("tenants")),
   vehicleId: v.id("vehicles"),
   vin: v.string(),
   overrides: v.optional(vinSignalOverridesValidator),
