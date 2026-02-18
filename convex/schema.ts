@@ -290,7 +290,7 @@ export default defineSchema({
 
   quoteTransitionEvents: defineTable({
     tenantId: v.id("tenants"),
-    quoteId: v.id("quotes"),
+    quoteId: v.string(),
     fromStatus: v.optional(v.union(...QUOTE_STATUS.map((status) => v.literal(status)))),
     toStatus: v.union(...QUOTE_STATUS.map((status) => v.literal(status))),
     reason: v.optional(v.string()),
@@ -356,4 +356,27 @@ export default defineSchema({
     .index("by_tenant_slug", ["tenantSlug"])
     .index("by_tenant_review_status", ["tenantSlug", "reviewStatus"])
     .index("by_tenant_reviewed_at", ["tenantSlug", "reviewedAt"]),
+
+  aiSubmissions: defineTable({
+    ...tenantScopedFields,
+    quoteId: v.string(),
+    imageUrls: v.array(v.string()),
+    vin: v.string(),
+    notes: v.optional(v.string()),
+    idempotencyKey: v.string(),
+    status: v.union(v.literal("PENDING"), v.literal("PROCESSING"), v.literal("COMPLETE"), v.literal("FAILED")),
+    aiRunId: v.optional(v.id("agentRuns")),
+    providerRunId: v.optional(v.string()),
+    rawAiPayload: v.optional(v.any()),
+    normalizedSignals: v.optional(v.any()),
+    processingStartedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    errorMetadata: v.optional(v.any()),
+  })
+    .index("by_tenant_quote", ["tenantId", "quoteId"])
+    .index("by_tenant_status", ["tenantId", "status"])
+    .index("by_tenant_idempotency_key", ["tenantId", "idempotencyKey"]),
 });

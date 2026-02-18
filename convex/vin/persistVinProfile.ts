@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 import { action, mutation } from "../_generated/server";
-import { requireAuthenticatedIdentity } from "../model/auth";
+import { requireTenantAccess } from "../model/tenantGuards";
 import {
   vinDecodedProfileValidator,
   vinQuoteResponseValidator,
@@ -18,7 +18,7 @@ type EmbeddingResponse = {
 
 export const persistDecodedVinProfile = mutation({
   args: {
-    tenantId: v.id("tenants"),
+    tenantId: v.optional(v.id("tenants")),
     vehicleId: v.id("vehicles"),
     vin: v.string(),
     profile: vinDecodedProfileValidator,
@@ -27,11 +27,11 @@ export const persistDecodedVinProfile = mutation({
   },
   returns: v.id("vinProfiles"),
   handler: async (ctx: any, args: any) => {
-    await requireAuthenticatedIdentity(ctx);
+    const effectiveTenantId = await requireTenantAccess(ctx, args.tenantId);
 
     const now = Date.now();
     const id = await ctx.db.insert("vinProfiles", {
-      tenantId: args.tenantId,
+      tenantId: effectiveTenantId,
       vehicleId: args.vehicleId,
       vin: args.vin,
       profile: args.profile,
@@ -48,7 +48,7 @@ export const persistDecodedVinProfile = mutation({
 
 export const decodeAndPersistVinProfile = action({
   args: {
-    tenantId: v.id("tenants"),
+    tenantId: v.optional(v.id("tenants")),
     vehicleId: v.id("vehicles"),
     vin: v.string(),
     overrides: v.optional(vinSignalOverridesValidator),
@@ -57,7 +57,7 @@ export const decodeAndPersistVinProfile = action({
   },
   returns: vinQuoteResponseValidator,
   handler: async (ctx: any, args: any) => {
-    await requireAuthenticatedIdentity(ctx);
+    const effectiveTenantId = await requireTenantAccess(ctx, args.tenantId);
 
     const normalizedVin = normalizeVin(args.vin);
     const profile = await decodeVinProfile(normalizedVin);
@@ -87,7 +87,7 @@ export const decodeAndPersistVinProfile = action({
     }
 
     const profileId = await ctx.runMutation("vin/persistVinProfile:persistDecodedVinProfile", {
-      tenantId: args.tenantId,
+      tenantId: effectiveTenantId,
       vehicleId: args.vehicleId,
       vin: normalizedVin,
       profile,

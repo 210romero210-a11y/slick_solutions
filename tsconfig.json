@@ -31,7 +31,8 @@
       "@slick/contracts": [
         "./packages/contracts/src/index.ts"
       ]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
   "include": [
     "next-env.d.ts",
