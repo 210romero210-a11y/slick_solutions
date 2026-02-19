@@ -1,5 +1,11 @@
+import { QuoteDeliveryResponseSchema } from "@slick/contracts";
 import { NextRequest, NextResponse } from "next/server";
-import { deliverQuoteSms, deliverQuoteWeb, orchestrateInspection } from "../../../../../convex/workflows";
+import {
+  deliverQuoteEmail,
+  deliverQuoteSms,
+  deliverQuoteWeb,
+  orchestrateInspection,
+} from "../../../../../convex/workflows";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ inspectionId: string }> }) {
   const formData = await request.formData();
@@ -18,8 +24,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ in
     timeline: [],
   });
 
+  const [smsDelivery, emailDelivery] = await Promise.all([
+    deliverQuoteSms(inspection),
+    deliverQuoteEmail(inspection),
+  ]);
   const webDelivery = deliverQuoteWeb(inspection);
-  const smsDelivery = await deliverQuoteSms(inspection);
 
-  return NextResponse.json({ inspection, delivery: { webDelivery, smsDelivery } }, { status: 200 });
+  const responsePayload = QuoteDeliveryResponseSchema.parse({
+    inspectionId: inspection.inspectionId,
+    delivery: { web: webDelivery, sms: smsDelivery, email: emailDelivery },
+  });
+
+  return NextResponse.json({ inspection, ...responsePayload }, { status: 200 });
 }

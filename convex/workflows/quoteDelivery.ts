@@ -1,10 +1,10 @@
-import { getProviderEnvConfig } from "../../src/lib/providerConfig";
-import { InspectionRecord } from "./types";
+import { getProviderEnvConfig } from "../../src/lib/providerConfig.ts";
+import type { InspectionRecord } from "./types.ts";
 
 export type QuoteDeliveryStatus = "delivered" | "retrying" | "failed_transient" | "failed_permanent";
 
 export type QuoteDeliveryResult = {
-  channel: "web" | "sms";
+  channel: "web" | "sms" | "email";
   attemptedAt: string;
   deliveredAt: string | null;
   status: QuoteDeliveryStatus;
@@ -35,6 +35,10 @@ type TwilioMessageResponse = {
   status: string;
   error_code: number | null;
   error_message: string | null;
+};
+
+type ResendEmailResponse = {
+  id: string;
 };
 
 function parseTransientStatus(statusCode: number): boolean {
@@ -123,6 +127,89 @@ export async function deliverQuoteSms(record: InspectionRecord): Promise<QuoteDe
     deliveredAt: null,
     status: "retrying",
     message: lastMessage || "Retrying SMS delivery.",
+    providerMessageId: null,
+    providerAttemptCount: attempts,
+  };
+}
+
+export async function deliverQuoteEmail(record: InspectionRecord): Promise<QuoteDeliveryResult> {
+  const config = getProviderEnvConfig();
+  const maxAttempts = Number(process.env.RESEND_MAX_RETRIES ?? "3");
+  const attempts = Number.isFinite(maxAttempts) && maxAttempts > 0 ? Math.floor(maxAttempts) : 3;
+  const quoteDollars = ((record.quoteCents ?? 0) / 100).toFixed(2);
+  const attemptedAt = nowIso();
+  let lastMessage = "";
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: config.resendSenderIdentity,
+          to: [record.contact.email],
+          subject: `Your quote for inspection ${record.inspectionId}`,
+          text: `Hi ${record.contact.fullName}, your quote is ready: $${quoteDollars}.`,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as ResendEmailResponse;
+        const deliveredAt = nowIso();
+
+        return {
+          channel: "email",
+          attemptedAt,
+          deliveredAt,
+          status: "delivered",
+          message: "Email delivered via Resend API.",
+          providerMessageId: payload.id,
+          providerAttemptCount: attempt,
+        };
+      }
+
+      const errorText = await response.text();
+      const transientFailure = parseTransientStatus(response.status);
+      lastMessage = `Resend API failure (${response.status}): ${errorText}`;
+
+      if (!transientFailure || attempt === attempts) {
+        return {
+          channel: "email",
+          attemptedAt,
+          deliveredAt: null,
+          status: transientFailure ? "failed_transient" : "failed_permanent",
+          message: lastMessage,
+          providerMessageId: null,
+          providerAttemptCount: attempt,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Resend request error";
+      lastMessage = `Resend request error: ${message}`;
+
+      if (attempt === attempts) {
+        return {
+          channel: "email",
+          attemptedAt,
+          deliveredAt: null,
+          status: "failed_transient",
+          message: lastMessage,
+          providerMessageId: null,
+          providerAttemptCount: attempt,
+        };
+      }
+    }
+  }
+
+  return {
+    channel: "email",
+    attemptedAt,
+    deliveredAt: null,
+    status: "retrying",
+    message: lastMessage || "Retrying email delivery.",
     providerMessageId: null,
     providerAttemptCount: attempts,
   };
