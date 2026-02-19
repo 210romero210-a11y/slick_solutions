@@ -2,7 +2,6 @@ import {
   AgentRunner,
   type AgentDefinition,
   type AgentPersistence,
-  type RunLogEntry,
   type TenantMemoryRecord,
   ToolRegistry,
 } from "../../convex/ai/agentRunner";
@@ -37,9 +36,39 @@ export type VisionAgentInput = {
 };
 
 const tenantMemories: TenantMemoryRecord[] = [];
-const runLogs: RunLogEntry[] = [];
+const runLogs: Array<{ runId: string; tenantId: string; agentName: string; status: string; startedAt: number; completedAt?: number }> = [];
 
 class InMemoryAgentPersistence implements AgentPersistence {
+  async createRun(entry: {
+    tenantId: string;
+    agentName: string;
+    runType: string;
+    targetType?: string;
+    targetId?: string;
+    input: unknown;
+    startedAt: number;
+  }): Promise<string> {
+    const runId = `run_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    runLogs.push({ runId, tenantId: entry.tenantId, agentName: entry.agentName, status: "running", startedAt: entry.startedAt });
+    return runId;
+  }
+
+  async completeRun(runId: string, _output: unknown, finishedAt: number): Promise<void> {
+    const row = runLogs.find((item) => item.runId === runId);
+    if (row) {
+      row.status = "succeeded";
+      row.completedAt = finishedAt;
+    }
+  }
+
+  async failRun(runId: string, _error: unknown, finishedAt: number): Promise<void> {
+    const row = runLogs.find((item) => item.runId === runId);
+    if (row) {
+      row.status = "failed";
+      row.completedAt = finishedAt;
+    }
+  }
+
   async getTenantMemory(tenantId: string, namespace: string, limit = 10): Promise<TenantMemoryRecord[]> {
     return tenantMemories
       .filter((record) => record.tenantId === tenantId && record.namespace === namespace)
@@ -47,19 +76,25 @@ class InMemoryAgentPersistence implements AgentPersistence {
       .slice(0, limit);
   }
 
-  async storeTenantMemory(record: Omit<TenantMemoryRecord, "id" | "createdAt">): Promise<string> {
+  async storeTenantMemory(record: {
+    tenantId: string;
+    namespace: string;
+    key: string;
+    value: unknown;
+    metadata?: Record<string, unknown>;
+  }): Promise<string> {
     const stored: TenantMemoryRecord = {
-      id: crypto.randomUUID(),
+      id: `mem_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       createdAt: Date.now(),
-      ...record,
+      tenantId: record.tenantId,
+      namespace: record.namespace,
+      key: record.key,
+      content: record.value,
+      ...(record.metadata ? { metadata: record.metadata } : {}),
     };
 
     tenantMemories.push(stored);
     return stored.id;
-  }
-
-  async persistRunLog(entry: RunLogEntry): Promise<void> {
-    runLogs.push(entry);
   }
 }
 
@@ -180,18 +215,14 @@ export type VisionAssessmentResult = VisionOutput & {
 export async function runVisionAssessment(input: VisionAgentInput): Promise<VisionAssessmentResult> {
   const { output, runId } = await runner.run(input.tenantSlug, visionAssessmentAgent, input);
 
-  await runner.remember(
-    input.tenantSlug,
-    visionAssessmentAgent.namespace,
-    `VIN ${input.vin} severity=${output.severityBucket} confidence=${output.confidence}`,
-    {
-      severityBucket: output.severityBucket,
-      contaminationLevel: output.contaminationLevel,
-      damageClass: output.damageClass,
-      damageType: output.damageType,
-      panelMetrics: output.panelMetrics,
-    },
-  );
+  await runner.remember(input.tenantSlug, visionAssessmentAgent.namespace, `vin:${input.vin}`, {
+    text: `VIN ${input.vin} severity=${output.severityBucket} confidence=${output.confidence}`,
+    severityBucket: output.severityBucket,
+    contaminationLevel: output.contaminationLevel,
+    damageClass: output.damageClass,
+    damageType: output.damageType,
+    panelMetrics: output.panelMetrics,
+  });
 
   const analysisSource: "ollama" | "heuristic" = output.fallbackUsed ? "heuristic" : output.provider;
 
@@ -211,6 +242,6 @@ export async function runVisionAssessment(input: VisionAgentInput): Promise<Visi
   };
 }
 
-export function getVisionRunLogs(): ReadonlyArray<RunLogEntry> {
+export function getVisionRunLogs(): ReadonlyArray<{ runId: string; tenantId: string; agentName: string; status: string; startedAt: number; completedAt?: number }> {
   return runLogs;
 }

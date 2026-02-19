@@ -306,6 +306,7 @@ export default defineSchema({
     namespace: v.string(),
     key: v.string(),
     value: v.any(),
+    metadata: v.optional(v.any()),
     expiresAt: v.optional(v.number()),
   })
     .index("by_tenant_namespace_key", ["tenantId", "namespace", "key"])
