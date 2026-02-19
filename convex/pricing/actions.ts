@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { action } from "../_generated/server";
 import { requireAuthenticatedIdentity } from "../model/auth";
+import { enforceActionRateLimit } from "../model/actionRateLimit";
 import { buildPricingContext } from "./contextBuilder";
 import { computeQuotePricing } from "./ruleEvaluator";
 
@@ -30,6 +31,13 @@ export const calculateQuotePricing = action({
   args: pricingCalculationArgs,
   handler: async (ctx: any, args: any) => {
     await requireAuthenticatedIdentity(ctx);
+
+    await enforceActionRateLimit(ctx, {
+      tenantKey: `${args.tenantId}`,
+      operation: "inspection.pricing",
+      maxRequestsPerWindow: 30,
+      windowMs: 60_000,
+    });
 
     const compiledContext = await buildPricingContext(ctx, args);
     const computed = computeQuotePricing(compiledContext);

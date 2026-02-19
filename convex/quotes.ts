@@ -19,13 +19,23 @@ async function appendQuoteSnapshot(ctx: any, args: {
   actorSource: string;
   snapshotAt: number;
 }) {
+  const metadata = args.ruleMetadata && typeof args.ruleMetadata === "object" ? args.ruleMetadata : {};
+
   await ctx.db.insert("quoteSnapshots", {
     tenantId: args.tenantId,
     quoteId: args.quoteId,
+    pricingRuleVersion: typeof (metadata as any).ruleVersion === "number" ? (metadata as any).ruleVersion : 1,
+    coefficientSnapshot: {},
+    rawAiOutput: {},
+    vinSignals: {},
+    calculationTrace: [],
     snapshotEvent: args.snapshotEvent,
     pricingInputPayload: args.pricingInputPayload,
     normalizedContext: args.normalizedContext,
-    ruleMetadata: args.ruleMetadata,
+    ruleMetadata: {
+      ...(metadata as Record<string, unknown>),
+      ruleVersion: typeof (metadata as any).ruleVersion === "number" ? (metadata as any).ruleVersion : 1,
+    },
     computedLineItems: args.computedLineItems,
     computedTotals: args.computedTotals,
     snapshotAt: args.snapshotAt,
