@@ -56,6 +56,14 @@ Migration entry points are in `convex/migrations/pricingMigrations.ts`.
 2. `2026-02-quote-snapshots-seed-rule-metadata-version`
    - Ensures historic snapshots contain `ruleMetadata.ruleVersion` fallback.
 
+3. `2026-03-pricing-coefficients-baseline-shape`
+   - Normalizes `pricingCoefficients` baseline fields (`version`, `isActive`, `effectiveFrom`) for schema-safe evolution.
+4. `2026-03-quote-snapshots-baseline-shape-and-backfill`
+   - Ensures every historical snapshot has baseline fields (`pricingRuleVersion`, `coefficientSnapshot`, `rawAiOutput`, `vinSignals`, `calculationTrace`).
+   - Backfills missing snapshot trails by creating baseline `quote_created` snapshots for legacy quotes.
+5. `2026-03-ai-signal-normalization-baseline`
+   - Normalizes `aiSignals` and `aiSignalEvents` records into a consistent payload/status structure.
+
 ### Standard operating procedure
 
 1. Deploy schema changes first (fields should be optional until migration completes).

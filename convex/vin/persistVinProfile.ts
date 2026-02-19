@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { action, mutation } from "../_generated/server";
 import { requireTenantAccess } from "../model/tenantGuards";
+import { enforceActionRateLimit } from "../model/actionRateLimit";
 import {
   vinDecodedProfileValidator,
   vinQuoteResponseValidator,
@@ -58,6 +59,13 @@ export const decodeAndPersistVinProfile = action({
   returns: vinQuoteResponseValidator,
   handler: async (ctx: any, args: any) => {
     const effectiveTenantId = await requireTenantAccess(ctx, args.tenantId);
+
+    await enforceActionRateLimit(ctx, {
+      tenantKey: `${effectiveTenantId}`,
+      operation: "vin.decode_and_embed",
+      maxRequestsPerWindow: 20,
+      windowMs: 60_000,
+    });
 
     const normalizedVin = normalizeVin(args.vin);
     const profile = await decodeVinProfile(normalizedVin);

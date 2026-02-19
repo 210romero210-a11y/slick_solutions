@@ -329,6 +329,18 @@ export default defineSchema({
     .index("by_tenant_run", ["tenantId", "runId"])
     .index("by_tenant_created_at", ["tenantId", "createdAt"]),
 
+  actionRateLimits: defineTable({
+    tenantKey: v.string(),
+    operation: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_tenant_operation_window", ["tenantKey", "operation", "windowStart"])
+    .index("by_expires_at", ["expiresAt"]),
+
 
   quoteSnapshots: defineTable({
     tenantId: v.id("tenants"),

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { action, mutation, query } from "../_generated/server";
+import { enforceActionRateLimit } from "../model/actionRateLimit";
 
 const statusValidator = v.union(
   v.literal("PENDING"),
@@ -117,6 +118,13 @@ export const processAIInspection = action({
   },
   returns: v.null(),
   handler: async (ctx: any, args: any) => {
+    await enforceActionRateLimit(ctx, {
+      tenantKey: `${args.tenantId}`,
+      operation: "ai.vision_inference",
+      maxRequestsPerWindow: 25,
+      windowMs: 60_000,
+    });
+
     const startedAt = Date.now();
     const runId = await ctx.runMutation("ai/submissions:markSubmissionProcessing", {
       submissionId: args.submissionId,
