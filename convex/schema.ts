@@ -342,6 +342,17 @@ export default defineSchema({
     .index("by_tenant_operation_window", ["tenantKey", "operation", "windowStart"])
     .index("by_expires_at", ["expiresAt"]),
 
+  actionCache: defineTable({
+    tenantKey: v.string(),
+    cacheKey: v.string(),
+    value: v.any(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_tenant_cache_key", ["tenantKey", "cacheKey"])
+    .index("by_expires_at", ["expiresAt"]),
+
 
   quoteSnapshots: defineTable({
     tenantId: v.id("tenants"),

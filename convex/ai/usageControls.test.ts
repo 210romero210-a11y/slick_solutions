@@ -153,3 +153,72 @@ test("applies tenant and operation specific limits across rolling windows", asyn
 
   assert.equal(ledger.entries.length, 3);
 });
+
+
+class CapturingRateLimiter implements RateLimitRepository {
+  public lastKey: string | null = null;
+
+  async incrementAndGet(_tenantId: string, key: string, _windowMs: number): Promise<number> {
+    this.lastKey = key;
+    return 1;
+  }
+}
+
+test("uses tenant and feature in rate-limit bucket keys", async () => {
+  const ledger = new TestLedger();
+  const rateLimiter = new CapturingRateLimiter();
+  const controller = new UsageController(ledger, rateLimiter, new TestCache(), {
+    maxRequestsPerWindow: 3,
+    rateLimitWindowMs: 60_000,
+    tokenCostUsdPer1k: 0.002,
+    now: () => 125_000,
+  });
+
+  await controller.withCacheRateLimitAndBilling({
+    tenantId: "tenant-keyed",
+    model: "inspection-orchestrator",
+    operation: "aiInspection",
+    cacheKey: "one",
+    args: { payload: "x" },
+    estimateInputTokens: () => 4,
+    estimateOutputTokens: () => 2,
+    execute: async () => ({ ok: true }),
+  });
+
+  assert.equal(rateLimiter.lastKey, "tenant-keyed:aiInspection:2");
+});
+
+test("records consistent ledger totals and costs across repeated calls", async () => {
+  const ledger = new TestLedger();
+  let executions = 0;
+  const controller = new UsageController(ledger, new TestRateLimiter(), new TestCache(), {
+    maxRequestsPerWindow: 5,
+    rateLimitWindowMs: 60_000,
+    tokenCostUsdPer1k: 0.5,
+    now: () => 1_000,
+  });
+
+  const input = {
+    tenantId: "tenant-ledger",
+    model: "inspection-orchestrator",
+    operation: "aiInspection",
+    cacheKey: "repeat",
+    args: { payload: "repeat" },
+    estimateInputTokens: () => 100,
+    estimateOutputTokens: () => 50,
+    execute: async () => {
+      executions += 1;
+      return { ok: true };
+    },
+  };
+
+  await controller.withCacheRateLimitAndBilling(input);
+  await controller.withCacheRateLimitAndBilling(input);
+  await controller.withCacheRateLimitAndBilling(input);
+
+  assert.equal(executions, 1);
+  assert.equal(ledger.entries.length, 3);
+  assert.deepEqual(ledger.entries.map((entry) => entry.totalTokens), [150, 100, 100]);
+  assert.deepEqual(ledger.entries.map((entry) => entry.estimatedCostUsd), [0.075, 0.05, 0.05]);
+  assert.deepEqual(ledger.entries.map((entry) => entry.cacheHit), [false, true, true]);
+});
