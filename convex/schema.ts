@@ -264,6 +264,25 @@ export default defineSchema({
     .index("by_tenant_vehicle", ["tenantId", "vehicleId"])
     .index("by_tenant_created_at", ["tenantId", "createdAt"]),
 
+
+  insuranceReports: defineTable({
+    inspectionId: v.string(),
+    artifactKey: v.string(),
+    fileName: v.string(),
+    mimeType: v.literal("application/pdf"),
+    byteLength: v.number(),
+    sections: v.array(v.string()),
+    generatedAt: v.string(),
+    generatedAtEpochMs: v.number(),
+    hash: v.string(),
+    templateVersion: v.string(),
+    sourceModels: v.array(v.string()),
+    reportVersion: v.number(),
+    artifactBase64: v.string(),
+  })
+    .index("by_inspection_generated", ["inspectionId", "generatedAtEpochMs"])
+    .index("by_inspection_artifact", ["inspectionId", "artifactKey"]),
+
   upsellCatalog: defineTable({
     ...tenantScopedFields,
     sku: v.string(),

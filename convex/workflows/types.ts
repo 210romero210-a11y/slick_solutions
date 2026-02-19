@@ -82,6 +82,7 @@ export type InsuranceReportInput = {
   damageClassifications: Array<{
     area: string;
     severity: "minor" | "moderate" | "major";
+    category: string;
     confidence: number;
   }>;
   aiConditionNarrative: string;
@@ -93,4 +94,12 @@ export type InsuranceReportArtifact = {
   byteLength: number;
   sections: string[];
   generatedAt: string;
+  artifactKey: string;
+  hash: string;
+  templateVersion: string;
+  sourceModels: string[];
+};
+
+export type InsuranceReportPdfRenderResult = InsuranceReportArtifact & {
+  pdfBytes: Uint8Array;
 };
