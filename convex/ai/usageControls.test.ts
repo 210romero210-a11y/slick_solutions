@@ -159,13 +159,13 @@ test("applies tenant and operation specific limits across rolling windows", asyn
 class CapturingRateLimiter implements RateLimitRepository {
   public lastKey: string | null = null;
 
-  async incrementAndGet(_tenantId: string, key: string, _windowMs: number, _now: number): Promise<number> {
+  async incrementAndGet(_tenantId: string, key: string, _windowMs: number): Promise<number> {
     this.lastKey = key;
     return 1;
   }
 }
 
-test("passes feature-only keys to rate limiter", async () => {
+test("uses tenant and feature in rate-limit bucket keys", async () => {
   const ledger = new TestLedger();
   const rateLimiter = new CapturingRateLimiter();
   const controller = new UsageController(ledger, rateLimiter, new TestCache(), {
@@ -186,7 +186,7 @@ test("passes feature-only keys to rate limiter", async () => {
     execute: async () => ({ ok: true }),
   });
 
-  assert.equal(rateLimiter.lastKey, "aiInspection");
+  assert.equal(rateLimiter.lastKey, "tenant-keyed:aiInspection:2");
 });
 
 test("records consistent ledger totals and costs across repeated calls", async () => {

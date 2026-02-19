@@ -8,7 +8,7 @@ type ConvexClient = {
 export class ConvexAiUsageLedgerRepository implements AiUsageLedgerRepository {
   constructor(private readonly client: ConvexClient) {}
 
-  async insert(entry: Omit<AiUsageLedgerEntry, "id">): Promise<string> {
+  async insert(entry: Omit<AiUsageLedgerEntry, "id" | "createdAt">): Promise<string> {
     const ledgerId = await this.client.mutation("ai/repositories:insertAiUsageLedgerEntry", {
       tenantId: entry.tenantId,
       actorId: entry.actorId,
@@ -20,7 +20,7 @@ export class ConvexAiUsageLedgerRepository implements AiUsageLedgerRepository {
       estimatedCostUsd: entry.estimatedCostUsd,
       cacheHit: entry.cacheHit,
       metadata: entry.metadata,
-      now: entry.createdAt,
+      now: Date.now(),
     });
 
     return `${ledgerId}`;
@@ -30,12 +30,12 @@ export class ConvexAiUsageLedgerRepository implements AiUsageLedgerRepository {
 export class ConvexRateLimitRepository implements RateLimitRepository {
   constructor(private readonly client: ConvexClient) {}
 
-  async incrementAndGet(tenantId: string, key: string, windowMs: number, now: number): Promise<number> {
+  async incrementAndGet(tenantId: string, key: string, windowMs: number): Promise<number> {
     const result = (await this.client.mutation("ai/repositories:incrementActionRateLimit", {
       tenantKey: tenantId,
       operation: key,
       windowMs,
-      now,
+      now: Date.now(),
     })) as { count: number };
 
     return result.count;
@@ -46,7 +46,7 @@ export class ConvexActionCacheRepository implements ActionCacheRepository {
   constructor(private readonly client: ConvexClient) {}
 
   async get<T>(tenantId: string, cacheKey: string): Promise<T | null> {
-    return (await this.client.mutation("ai/repositories:getActionCacheEntry", {
+    return (await this.client.query("ai/repositories:getActionCacheEntry", {
       tenantKey: tenantId,
       cacheKey,
       now: Date.now(),

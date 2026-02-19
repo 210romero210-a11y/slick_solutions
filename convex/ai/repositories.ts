@@ -236,7 +236,7 @@ export const incrementActionRateLimit = mutation({
   },
 });
 
-export const getActionCacheEntry = mutation({
+export const getActionCacheEntry = query({
   args: {
     tenantKey: v.string(),
     cacheKey: v.string(),
@@ -254,7 +254,6 @@ export const getActionCacheEntry = mutation({
     }
 
     if (row.expiresAt <= args.now) {
-      await ctx.db.delete(row._id);
       return null;
     }
 
@@ -325,11 +324,7 @@ export const getTenantAiCostRollupDaily = query({
     const rows = await ctx.db
       .query("aiUsageLedger")
       .withIndex("by_tenant_created_at", (q: any) =>
-        q
-          .eq("tenantId", args.tenantId)
-          .eq("isDeleted", false)
-          .gte("createdAt", args.fromInclusive)
-          .lt("createdAt", args.toExclusive),
+        q.eq("tenantId", args.tenantId).gte("createdAt", args.fromInclusive).lt("createdAt", args.toExclusive),
       )
       .collect();
 
@@ -367,11 +362,7 @@ export const getTenantAiCostRollupMonthly = query({
     const rows = await ctx.db
       .query("aiUsageLedger")
       .withIndex("by_tenant_created_at", (q: any) =>
-        q
-          .eq("tenantId", args.tenantId)
-          .eq("isDeleted", false)
-          .gte("createdAt", args.fromInclusive)
-          .lt("createdAt", args.toExclusive),
+        q.eq("tenantId", args.tenantId).gte("createdAt", args.fromInclusive).lt("createdAt", args.toExclusive),
       )
       .collect();
 

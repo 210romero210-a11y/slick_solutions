@@ -105,7 +105,13 @@ export class UsageController {
   async withCacheRateLimitAndBilling<T, TArgs>(input: MeteredExecutionInput<TArgs>): Promise<T> {
     const policy = this.resolvePolicy(input.tenantId, input.operation);
     const now = this.now();
-    const count = await this.rateLimiter.incrementAndGet(input.tenantId, input.operation, policy.rateLimitWindowMs, now);
+    const windowBucket = Math.floor(now / policy.rateLimitWindowMs);
+    const rateLimitKey = `${input.tenantId}:${input.operation}:${windowBucket}`;
+    const count = await this.rateLimiter.incrementAndGet(
+      input.tenantId,
+      rateLimitKey,
+      policy.rateLimitWindowMs,
+    );
 
     if (count > policy.maxRequestsPerWindow) {
       const retryAfterMs = policy.rateLimitWindowMs - (now % policy.rateLimitWindowMs);
