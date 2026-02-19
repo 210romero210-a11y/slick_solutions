@@ -78,7 +78,7 @@ export const submitInspection = async (
   const tenantId = payload.tenantSlug;
 
   return usageController.withCacheRateLimitAndBilling<AssessmentSubmissionResponse, AssessmentSubmissionRequest>({
-    tenantId,
+    tenantId: payload.tenantSlug,
     model: "inspection-orchestrator",
     operation: "aiInspection",
     cacheKey: buildCacheKey(payload),

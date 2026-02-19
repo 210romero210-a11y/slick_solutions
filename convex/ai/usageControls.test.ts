@@ -11,9 +11,9 @@ import {
 } from "./usageControls.ts";
 
 class TestLedger implements AiUsageLedgerRepository {
-  public readonly entries: Array<Omit<AiUsageLedgerEntry, "id" | "createdAt">> = [];
+  public readonly entries: Array<Omit<AiUsageLedgerEntry, "id">> = [];
 
-  async insert(entry: Omit<AiUsageLedgerEntry, "id" | "createdAt">): Promise<string> {
+  async insert(entry: Omit<AiUsageLedgerEntry, "id">): Promise<string> {
     this.entries.push(entry);
     return `ledger_${this.entries.length}`;
   }
@@ -22,8 +22,9 @@ class TestLedger implements AiUsageLedgerRepository {
 class TestRateLimiter implements RateLimitRepository {
   private readonly buckets = new Map<string, number>();
 
-  async incrementAndGet(tenantId: string, key: string, _windowMs: number): Promise<number> {
-    const bucketKey = `${tenantId}:${key}`;
+  async incrementAndGet(tenantId: string, key: string, windowMs: number, now: number): Promise<number> {
+    const windowStart = now - (now % windowMs);
+    const bucketKey = `${tenantId}:${key}:${windowStart}`;
     const next = (this.buckets.get(bucketKey) ?? 0) + 1;
     this.buckets.set(bucketKey, next);
     return next;

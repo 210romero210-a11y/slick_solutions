@@ -328,7 +328,7 @@ export default defineSchema({
     .index("by_tenant_feature", ["tenantId", "feature"])
     .index("by_tenant_model", ["tenantId", "model"])
     .index("by_tenant_run", ["tenantId", "runId"])
-    .index("by_tenant_created_at", ["tenantId", "createdAt"]),
+    .index("by_tenant_created_at", ["tenantId", "isDeleted", "createdAt"]),
 
   actionRateLimits: defineTable({
     tenantKey: v.string(),

@@ -14,11 +14,11 @@ export interface AiUsageLedgerEntry {
 }
 
 export interface AiUsageLedgerRepository {
-  insert(entry: Omit<AiUsageLedgerEntry, "id" | "createdAt">): Promise<string>;
+  insert(entry: Omit<AiUsageLedgerEntry, "id">): Promise<string>;
 }
 
 export interface RateLimitRepository {
-  incrementAndGet(tenantId: string, key: string, windowMs: number): Promise<number>;
+  incrementAndGet(tenantId: string, key: string, windowMs: number, now: number): Promise<number>;
 }
 
 export interface ActionCacheRepository {
@@ -204,6 +204,7 @@ export class UsageController {
       totalTokens,
       estimatedCostUsd,
       cacheHit: tokenUsage.cacheHit,
+      createdAt: this.now(),
       metadata: {
         ...input.metadata,
         ...tokenUsage.metadata,
