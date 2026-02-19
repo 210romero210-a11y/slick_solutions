@@ -14,11 +14,11 @@ export interface AiUsageLedgerEntry {
 }
 
 export interface AiUsageLedgerRepository {
-  insert(entry: Omit<AiUsageLedgerEntry, "id" | "createdAt">): Promise<string>;
+  insert(entry: Omit<AiUsageLedgerEntry, "id">): Promise<string>;
 }
 
 export interface RateLimitRepository {
-  incrementAndGet(tenantId: string, key: string, windowMs: number): Promise<number>;
+  incrementAndGet(tenantId: string, key: string, windowMs: number, now: number): Promise<number>;
 }
 
 export interface ActionCacheRepository {
@@ -105,12 +105,7 @@ export class UsageController {
   async withCacheRateLimitAndBilling<T, TArgs>(input: MeteredExecutionInput<TArgs>): Promise<T> {
     const policy = this.resolvePolicy(input.tenantId, input.operation);
     const now = this.now();
-    const rateLimitKey = `${input.operation}:${Math.floor(now / policy.rateLimitWindowMs)}`;
-    const count = await this.rateLimiter.incrementAndGet(
-      input.tenantId,
-      rateLimitKey,
-      policy.rateLimitWindowMs,
-    );
+    const count = await this.rateLimiter.incrementAndGet(input.tenantId, input.operation, policy.rateLimitWindowMs, now);
 
     if (count > policy.maxRequestsPerWindow) {
       const retryAfterMs = policy.rateLimitWindowMs - (now % policy.rateLimitWindowMs);
@@ -203,6 +198,7 @@ export class UsageController {
       totalTokens,
       estimatedCostUsd,
       cacheHit: tokenUsage.cacheHit,
+      createdAt: this.now(),
       metadata: {
         ...input.metadata,
         ...tokenUsage.metadata,

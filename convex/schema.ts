@@ -328,7 +328,7 @@ export default defineSchema({
     .index("by_tenant_feature", ["tenantId", "feature"])
     .index("by_tenant_model", ["tenantId", "model"])
     .index("by_tenant_run", ["tenantId", "runId"])
-    .index("by_tenant_created_at", ["tenantId", "createdAt"]),
+    .index("by_tenant_created_at", ["tenantId", "isDeleted", "createdAt"]),
 
   actionRateLimits: defineTable({
     tenantKey: v.string(),
@@ -340,6 +340,17 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_tenant_operation_window", ["tenantKey", "operation", "windowStart"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  actionCache: defineTable({
+    tenantKey: v.string(),
+    cacheKey: v.string(),
+    value: v.any(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_tenant_cache_key", ["tenantKey", "cacheKey"])
     .index("by_expires_at", ["expiresAt"]),
 
 
