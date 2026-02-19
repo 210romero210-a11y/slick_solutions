@@ -130,6 +130,28 @@ export const AssessmentSubmissionResponseSchema = z.object({
   ),
 });
 
+
+export const QuoteDeliveryStatusSchema = z.enum(["delivered", "retrying", "failed_transient", "failed_permanent"]);
+
+export const QuoteDeliveryResultSchema = z.object({
+  channel: z.enum(["web", "sms", "email"]),
+  attemptedAt: z.string().datetime(),
+  deliveredAt: z.string().datetime().nullable(),
+  status: QuoteDeliveryStatusSchema,
+  message: z.string(),
+  providerMessageId: z.string().nullable(),
+  providerAttemptCount: z.number().int().positive(),
+});
+
+export const QuoteDeliveryResponseSchema = z.object({
+  inspectionId: z.string(),
+  delivery: z.object({
+    web: QuoteDeliveryResultSchema.extend({ channel: z.literal("web") }),
+    sms: QuoteDeliveryResultSchema.extend({ channel: z.literal("sms") }),
+    email: QuoteDeliveryResultSchema.extend({ channel: z.literal("email") }),
+  }),
+});
+
 export type CreateLeadRequest = z.infer<typeof CreateLeadRequestSchema>;
 export type CreateLeadResponse = z.infer<typeof CreateLeadResponseSchema>;
 export type DecodeVinRequest = z.infer<typeof DecodeVinRequestSchema>;
@@ -141,3 +163,7 @@ export type AssessmentSubmissionRequest = z.infer<typeof AssessmentSubmissionReq
 export type EstimateLineItem = z.infer<typeof EstimateLineItemSchema>;
 export type InspectionState = z.infer<typeof InspectionStateSchema>;
 export type AssessmentSubmissionResponse = z.infer<typeof AssessmentSubmissionResponseSchema>;
+
+export type QuoteDeliveryStatus = z.infer<typeof QuoteDeliveryStatusSchema>;
+export type QuoteDeliveryResult = z.infer<typeof QuoteDeliveryResultSchema>;
+export type QuoteDeliveryResponse = z.infer<typeof QuoteDeliveryResponseSchema>;
