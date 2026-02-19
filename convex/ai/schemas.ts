@@ -241,3 +241,55 @@ export const agentOutputSchemas = {
 } as const;
 
 export type AgentOutputSchemaName = keyof typeof agentOutputSchemas;
+
+type SchemaOutputMap = {
+  inspection: InspectionOutput;
+  vision: VisionOutput;
+  damageClassification: DamageClassificationOutput;
+  pricing: PricingOutput;
+  upsell: UpsellOutput;
+  qa: QaOutput;
+  customerCommunication: CustomerCommunicationOutput;
+  technicianRouting: TechnicianRoutingOutput;
+  revenueOptimization: RevenueOptimizationOutput;
+};
+
+const assert = (condition: boolean, message: string): void => {
+  if (!condition) {
+    throw new Error(`Schema validation failed: ${message}`);
+  }
+};
+
+export const validateAgentOutput = <TName extends AgentOutputSchemaName>(
+  schemaName: TName,
+  payload: SchemaOutputMap[TName],
+): SchemaOutputMap[TName] => {
+  if (schemaName === "inspection") {
+    const record = payload as InspectionOutput;
+    assert(typeof record.summary === "string", "inspection.summary");
+    assert(Array.isArray(record.checklist), "inspection.checklist");
+    assert(Array.isArray(record.recommendedActions), "inspection.recommendedActions");
+  }
+
+  if (schemaName === "pricing") {
+    const record = payload as PricingOutput;
+    assert(typeof record.subtotal === "number", "pricing.subtotal");
+    assert(typeof record.taxes === "number", "pricing.taxes");
+    assert(typeof record.total === "number", "pricing.total");
+    assert(Array.isArray(record.lineItems), "pricing.lineItems");
+  }
+
+  if (schemaName === "upsell") {
+    const record = payload as UpsellOutput;
+    assert(Array.isArray(record.opportunities), "upsell.opportunities");
+    assert(["low", "medium", "high"].includes(record.priority), "upsell.priority");
+  }
+
+  if (schemaName === "customerCommunication") {
+    const record = payload as CustomerCommunicationOutput;
+    assert(["email", "sms", "phone", "in_app"].includes(record.channel), "customerCommunication.channel");
+    assert(typeof record.message === "string", "customerCommunication.message");
+  }
+
+  return payload;
+};
