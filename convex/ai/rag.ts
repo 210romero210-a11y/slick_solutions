@@ -1,5 +1,7 @@
 import { OllamaClient } from "./ollamaClient";
 
+import type { RetrievalKind, SearchResultDto } from "../search/types";
+
 export interface TenantVectorRecord {
   id: string;
   tenantId: string;
@@ -11,7 +13,7 @@ export interface TenantVectorRecord {
 
 export interface VectorStore {
   upsert(record: TenantVectorRecord): Promise<void>;
-  query(tenantId: string, embedding: number[], limit: number): Promise<TenantVectorRecord[]>;
+  query(args: { tenantId: string; embedding: number[]; limit: number; kind: RetrievalKind }): Promise<SearchResultDto[]>;
 }
 
 export interface RagOptions {
@@ -58,56 +60,42 @@ export class RagService {
       sourceId: input.sourceId,
       content: input.content,
       embedding,
-      metadata: input.metadata,
+      ...(input.metadata ? { metadata: input.metadata } : {}),
     });
   }
 
-  async retrieveTenantContext(tenantId: string, query: string, limit = this.topK): Promise<TenantVectorRecord[]> {
-    const queryEmbedding = await this.embedText(query);
-    const records = await this.vectorStore.query(tenantId, queryEmbedding, limit);
-
-    return records.filter((record) => record.tenantId === tenantId);
+  async retrieveTenantContext(args: {
+    tenantId: string;
+    query: string;
+    kind: RetrievalKind;
+    limit?: number;
+  }): Promise<SearchResultDto[]> {
+    const queryEmbedding = await this.embedText(args.query);
+    return this.vectorStore.query({
+      tenantId: args.tenantId,
+      embedding: queryEmbedding,
+      limit: args.limit ?? this.topK,
+      kind: args.kind,
+    });
   }
 }
 
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) {
-    throw new Error("Embedding vectors must have matching dimensions");
-  }
-
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-
-  if (magA === 0 || magB === 0) {
-    return 0;
-  }
-
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
-}
-
-export class InMemoryTenantVectorStore implements VectorStore {
-  private readonly records = new Map<string, TenantVectorRecord>();
+export class ConvexVectorStoreAdapter implements VectorStore {
+  constructor(
+    private readonly retrieve: (args: {
+      tenantId: string;
+      embedding: number[];
+      limit: number;
+      kind: RetrievalKind;
+    }) => Promise<SearchResultDto[]>,
+    private readonly upsertHandler: (record: TenantVectorRecord) => Promise<void> = async () => {},
+  ) {}
 
   async upsert(record: TenantVectorRecord): Promise<void> {
-    this.records.set(record.id, record);
+    await this.upsertHandler(record);
   }
 
-  async query(tenantId: string, embedding: number[], limit: number): Promise<TenantVectorRecord[]> {
-    return [...this.records.values()]
-      .filter((record) => record.tenantId === tenantId)
-      .map((record) => ({
-        record,
-        score: cosineSimilarity(record.embedding, embedding),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(({ record }) => record);
+  async query(args: { tenantId: string; embedding: number[]; limit: number; kind: RetrievalKind }): Promise<SearchResultDto[]> {
+    return this.retrieve(args);
   }
 }

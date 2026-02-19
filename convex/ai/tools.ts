@@ -1,3 +1,4 @@
+import type { RagService } from "./rag";
 import { ToolRegistry, type AgentRunContext } from "./agentRunner";
 
 type PricingArgs = {
@@ -16,7 +17,7 @@ const invokeDeliveryChannel = async (
   preview: args.message,
 });
 
-export const createDefaultToolRegistry = (): ToolRegistry => {
+export const createDefaultToolRegistry = (ragService?: RagService): ToolRegistry => {
   const registry = new ToolRegistry();
 
   registry.register({
@@ -41,10 +42,34 @@ export const createDefaultToolRegistry = (): ToolRegistry => {
     execute: async (args: unknown, context) => {
       const payload = args as { query: string; limit?: number };
       const limit = Math.max(1, Math.min(10, payload.limit ?? 3));
-      return Array.from({ length: limit }).map((_, index) => ({
-        id: `${context.tenantId}_match_${index + 1}`,
-        score: Number((0.92 - index * 0.1).toFixed(3)),
-        snippet: `Match for ${payload.query}`,
+
+      if (!ragService) {
+        return Array.from({ length: limit }).map((_, index) => ({
+          id: `${context.tenantId}_match_${index + 1}`,
+          score: Number((0.92 - index * 0.1).toFixed(3)),
+          snippet: `Match for ${payload.query}`,
+          explainability: {
+            kind: "inspectionDamage",
+            sourceTable: "inMemoryFallback",
+            sourceIndex: "none",
+            tenantFilterApplied: true,
+            matchField: "embedding",
+          },
+        }));
+      }
+
+      const matches = await ragService.retrieveTenantContext({
+        tenantId: context.tenantId,
+        query: payload.query,
+        kind: "inspectionDamage",
+        limit,
+      });
+
+      return matches.map((match) => ({
+        id: match.recordId,
+        score: match.score,
+        snippet: match.snippet,
+        explainability: match.explainability,
       }));
     },
   });
